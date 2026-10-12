@@ -1,14 +1,28 @@
 import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { Camera, Mail, User } from "lucide-react";
+import toast from "react-hot-toast";
 
 const ProfilePage = () => {
   const { authUser, isUpdatingProfile, updateProfile } = useAuthStore();
   const [selectedImg, setSelectedImg] = useState(null);
 
   const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
+
+    const isImageMime = file.type && file.type.startsWith("image/");
+    const isImageExt = /\.(jpe?g|png|gif|webp|heic|heif|bmp|svg|tiff|ico|jfif)$/i.test(file.name);
+
+    if (!isImageMime && !isImageExt) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image size must be less than 10MB");
+      return;
+    }
 
     const reader = new FileReader();
 
@@ -56,7 +70,7 @@ const ProfilePage = () => {
                   type="file"
                   id="avatar-upload"
                   className="hidden"
-                  accept="image/*"
+                  accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif"
                   onChange={handleImageUpload}
                   disabled={isUpdatingProfile}
                 />

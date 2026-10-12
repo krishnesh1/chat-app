@@ -110,6 +110,7 @@ const updateProfile = async (req, res) => {
     const uploadResponse = await cloudinary.uploader.upload(profilePic, {
       resource_type: "image",
       format: "jpg",
+      quality: "auto:best",
     });
     const secureUrl = uploadResponse.secure_url.replace(/\.heic$/i, ".jpg");
     console.log("Cloudinary upload response URL:", secureUrl);

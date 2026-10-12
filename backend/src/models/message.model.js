@@ -20,6 +20,54 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+    audio: {
+      type: String,
+    },
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Message",
+      default: null,
+    },
+    reactions: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        emoji: {
+          type: String,
+        },
+      },
+    ],
+    isViewOnce: {
+      type: Boolean,
+      default: false,
+    },
+    viewedBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    isStarredBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    isSecret: {
+      type: Boolean,
+      default: false,
+    },
+    status: {
+      type: String,
+      enum: ["sent", "delivered", "read"],
+      default: "sent",
+    },
   },
   { timestamps: true }
 );
