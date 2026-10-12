@@ -48,7 +48,7 @@ const ChatHeader = () => {
   return (
     <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-base-300/60 bg-base-100/70 backdrop-blur-md flex-shrink-0">
       <div className="flex items-center justify-between gap-1.5 sm:gap-2">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
           {/* Mobile Back Button (WhatsApp / Telegram style) */}
           <button
             onClick={() => setSelectedUser(null)}
@@ -73,8 +73,8 @@ const ChatHeader = () => {
           </div>
 
           {/* User info */}
-          <div className="min-w-0">
-            <h3 className="font-semibold text-sm sm:text-base leading-tight truncate max-w-[120px] xs:max-w-[180px] sm:max-w-none">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-xs sm:text-base leading-tight truncate max-w-[105px] xs:max-w-[160px] sm:max-w-none">
               {selectedUser.fullName}
             </h3>
             <div className="flex items-center gap-1.5 mt-0.5">

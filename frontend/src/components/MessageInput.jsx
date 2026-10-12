@@ -208,7 +208,7 @@ const MessageInput = () => {
   ];
 
   return (
-    <div className="p-3 sm:p-4 w-full flex-shrink-0 border-t border-base-300/60 bg-base-100/70 backdrop-blur-md relative">
+    <div className="p-2 sm:p-3 md:p-4 w-full flex-shrink-0 border-t border-base-300/60 bg-base-100/70 backdrop-blur-md relative">
       {/* 1. QUOTED REPLY PREVIEW BANNER */}
       {replyingTo && (
         <div className="mb-2 flex items-center justify-between bg-base-200/90 border-l-4 border-primary px-3 py-1.5 rounded-r-xl border border-base-300/70 animate-in fade-in slide-in-from-bottom-2">
@@ -358,8 +358,8 @@ const MessageInput = () => {
         </div>
       ) : (
         /* STANDARD INPUT FORM */
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-1.5 sm:gap-2 bg-base-200/60 hover:bg-base-200/80 transition-colors rounded-2xl px-2 sm:px-3 py-1.5 border border-base-300/60 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex-1 min-w-0 flex items-center gap-1 sm:gap-2 bg-base-200/60 hover:bg-base-200/80 transition-colors rounded-2xl px-2 sm:px-3 py-1.5 border border-base-300/60 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20">
             {/* Hidden file input */}
             <input
               type="file"
@@ -372,7 +372,7 @@ const MessageInput = () => {
             {/* Attach Image button */}
             <button
               type="button"
-              className={`btn btn-xs sm:btn-sm btn-ghost btn-circle transition-all ${
+              className={`btn btn-xs sm:btn-sm btn-ghost btn-circle shrink-0 transition-all ${
                 imagePreview ? "text-primary bg-primary/10" : "text-base-content/60 hover:text-primary"
               }`}
               onClick={() => fileInputRef.current?.click()}
@@ -385,7 +385,7 @@ const MessageInput = () => {
             <button
               type="button"
               onClick={() => setIsSecret(!isSecret)}
-              className={`btn btn-xs sm:btn-sm btn-ghost btn-circle transition-all ${
+              className={`btn btn-xs sm:btn-sm btn-ghost btn-circle shrink-0 transition-all ${
                 isSecret ? "text-amber-500 bg-amber-500/10" : "text-base-content/60 hover:text-amber-500"
               }`}
               title={isSecret ? "Confidential/Spoiler blur ACTIVE" : "Make message confidential/spoiler"}
@@ -397,7 +397,7 @@ const MessageInput = () => {
             <button
               type="button"
               onClick={() => setShowAiSuggestions(!showAiSuggestions)}
-              className={`btn btn-xs sm:btn-sm btn-ghost btn-circle transition-all ${
+              className={`btn btn-xs sm:btn-sm btn-ghost btn-circle shrink-0 transition-all ${
                 showAiSuggestions ? "text-primary bg-primary/10" : "text-base-content/60 hover:text-primary"
               }`}
               title="Smart AI replies & tone polish"
@@ -408,8 +408,8 @@ const MessageInput = () => {
             {/* Text Input */}
             <input
               type="text"
-              className="w-full bg-transparent border-0 outline-none focus:outline-none text-sm sm:text-base placeholder:text-base-content/40 px-1 py-1"
-              placeholder={isSecret ? "Type secret confidential message..." : "Type a message..."}
+              className="w-full min-w-0 bg-transparent border-0 outline-none focus:outline-none text-xs sm:text-base placeholder:text-base-content/40 px-1 py-1"
+              placeholder={isSecret ? "Type confidential message..." : "Type a message..."}
               value={text}
               onChange={handleTyping}
             />
@@ -419,7 +419,7 @@ const MessageInput = () => {
               <button
                 type="button"
                 onClick={startRecording}
-                className="btn btn-xs sm:btn-sm btn-ghost btn-circle text-base-content/60 hover:text-primary hover:bg-primary/10 transition-all"
+                className="btn btn-xs sm:btn-sm btn-ghost btn-circle shrink-0 text-base-content/60 hover:text-primary hover:bg-primary/10 transition-all"
                 title="Record voice note"
               >
                 <Mic className="size-4 sm:size-5" />
@@ -430,7 +430,7 @@ const MessageInput = () => {
           {/* Send Button */}
           <button
             type="submit"
-            className={`btn btn-sm sm:btn-md btn-circle shadow-md transition-all ${
+            className={`btn btn-sm sm:btn-md btn-circle shadow-md shrink-0 transition-all ${
               text.trim() || imagePreview
                 ? "btn-primary hover:scale-105 active:scale-95"
                 : "btn-ghost text-base-content/30 cursor-not-allowed"

@@ -71,7 +71,7 @@ const AudioMessage = ({ audioUrl, isMe }) => {
   };
 
   return (
-    <div className="flex items-center gap-3 py-1 px-2 w-64 sm:w-72">
+    <div className="flex items-center gap-2 sm:gap-3 py-1 px-1 sm:px-2 w-full max-w-[220px] xs:max-w-[260px] sm:max-w-[280px]">
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
       {/* Play/Pause Button */}
