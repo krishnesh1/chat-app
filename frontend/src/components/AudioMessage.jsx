@@ -70,8 +70,6 @@ const AudioMessage = ({ audioUrl, isMe }) => {
     return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-
   return (
     <div className="flex items-center gap-3 py-1 px-2 w-64 sm:w-72">
       <audio ref={audioRef} src={audioUrl} preload="metadata" />

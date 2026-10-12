@@ -7,13 +7,13 @@ import {
   VideoOff,
   Mic,
   MicOff,
-  Maximize2,
   Minimize2,
 } from "lucide-react";
 
 const CallModal = () => {
   const {
     callState,
+    outgoingStatus,
     isVideoCall,
     caller,
     receiver,
@@ -31,6 +31,7 @@ const CallModal = () => {
     toggleVideo,
   } = useCallStore();
 
+  const remoteAudioRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
@@ -38,15 +39,27 @@ const CallModal = () => {
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(() => {});
     }
-  }, [localStream, callState]);
+  }, [localStream, callState, isVideoCall]);
 
-  // Attach remote stream to video element
+  // Attach remote stream to audio AND video elements for 100% guaranteed sound & vision
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    if (remoteStream) {
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = remoteStream;
+        remoteAudioRef.current.play().catch((err) => {
+          console.log("Audio play error:", err);
+        });
+      }
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+        remoteVideoRef.current.play().catch((err) => {
+          console.log("Video play error:", err);
+        });
+      }
     }
-  }, [remoteStream, callState]);
+  }, [remoteStream, callState, isVideoCall]);
 
   if (callState === "idle") return null;
 
@@ -68,6 +81,8 @@ const CallModal = () => {
         onClick={() => setIsMinimized(false)}
         className="fixed bottom-6 right-6 z-50 bg-base-100/90 backdrop-blur-xl border border-primary/40 shadow-2xl rounded-2xl p-3 flex items-center gap-3 cursor-pointer hover:scale-105 transition-transform animate-in fade-in"
       >
+        {/* Hidden permanent audio player in minimized mode */}
+        <audio ref={remoteAudioRef} autoPlay playsInline />
         <div className="relative">
           <img
             src={avatarUrl}
@@ -78,7 +93,7 @@ const CallModal = () => {
         </div>
         <div className="text-xs pr-2">
           <p className="font-bold text-base-content leading-tight">
-            {targetPerson?.name || "Active Call"}
+            {targetPerson?.fullName || targetPerson?.name || "Active Call"}
           </p>
           <p className="text-[11px] font-mono text-primary font-semibold">
             {formatDuration(callDuration)}
@@ -118,7 +133,7 @@ const CallModal = () => {
             <h3 className="text-xl font-bold tracking-tight text-base-content">
               {targetPerson?.name}
             </h3>
-            <p className="text-sm text-base-content/60 mt-1 flex items-center justify-center gap-1.5">
+            <p className="text-sm text-base-content/60 mt-1 flex items-center justify-center gap-1.5 font-medium">
               {isVideoCall ? <Video className="size-4 text-primary" /> : <Phone className="size-4 text-emerald-500" />}
               <span>Incoming {isVideoCall ? "Video" : "Voice"} Call...</span>
             </p>
@@ -155,30 +170,53 @@ const CallModal = () => {
     );
   }
 
-  // ===== 2. OUTGOING CALL SCREEN (Ringing...) =====
+  // ===== 2. OUTGOING CALL SCREEN (Calling... vs Ringing...) =====
   if (callState === "calling") {
+    const isRinging = outgoingStatus === "ringing";
+
     return (
       <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in">
         <div className="bg-base-100/90 border border-base-300/80 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col items-center gap-6 relative overflow-hidden">
           {/* Ambient glow */}
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 size-48 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
+          <div
+            className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 size-48 ${
+              isRinging ? "bg-emerald-500/20" : "bg-primary/20"
+            } rounded-full blur-3xl pointer-events-none transition-colors duration-500`}
+          />
 
           {/* Receiver Avatar with Pulse */}
           <div className="relative">
-            <div className="size-28 rounded-full overflow-hidden ring-4 ring-primary/40 shadow-xl relative z-10">
+            <div
+              className={`size-28 rounded-full overflow-hidden ring-4 ${
+                isRinging ? "ring-emerald-500/50 shadow-emerald-500/20" : "ring-primary/40 shadow-primary/20"
+              } shadow-xl relative z-10 transition-all duration-500`}
+            >
               <img src={avatarUrl} alt={targetPerson?.fullName} className="size-full object-cover" />
             </div>
-            <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse -z-0" />
+            <div
+              className={`absolute inset-0 rounded-full ${
+                isRinging ? "bg-emerald-500/30 animate-ping" : "bg-primary/20 animate-pulse"
+              } -z-0`}
+            />
           </div>
 
           <div>
             <h3 className="text-xl font-bold tracking-tight text-base-content">
-              {targetPerson?.fullName}
+              {targetPerson?.fullName || targetPerson?.name}
             </h3>
-            <p className="text-sm text-base-content/60 mt-1 flex items-center justify-center gap-1.5">
-              {isVideoCall ? <Video className="size-4 text-primary" /> : <Phone className="size-4 text-emerald-500" />}
-              <span>Ringing {isVideoCall ? "video" : "voice"} call...</span>
-            </p>
+            <div className="flex flex-col items-center gap-1 mt-1.5">
+              <p className="text-sm flex items-center justify-center gap-1.5 font-semibold">
+                {isVideoCall ? <Video className="size-4 text-primary" /> : <Phone className="size-4 text-emerald-500" />}
+                <span className={isRinging ? "text-emerald-500" : "text-primary animate-pulse"}>
+                  {isRinging ? "Ringing..." : "Calling..."}
+                </span>
+              </p>
+              {!isRinging && (
+                <span className="text-[11px] text-base-content/50 font-normal">
+                  Contact offline • Rings automatically once online
+                </span>
+              )}
+            </div>
           </div>
 
           {/* End / Cancel Call Button */}
@@ -197,9 +235,12 @@ const CallModal = () => {
     );
   }
 
-  // ===== 3. CONNECTED CALL SCREEN (Active) =====
+  // ===== 3. CONNECTED CALL SCREEN (Active Call) =====
   return (
     <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-between p-4 sm:p-6 animate-in fade-in">
+      {/* Permanent background audio element to guarantee remote voice in voice AND video calls */}
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+
       {/* Top Header Bar */}
       <div className="w-full max-w-5xl flex items-center justify-between z-20 text-white py-2">
         <div className="flex items-center gap-3">
@@ -271,10 +312,10 @@ const CallModal = () => {
           /* Voice Call Visualizer Screen */
           <div className="flex flex-col items-center justify-center gap-6 text-white text-center">
             <div className="relative">
-              <div className="size-36 rounded-full overflow-hidden ring-4 ring-primary/40 shadow-2xl relative z-10">
+              <div className="size-36 rounded-full overflow-hidden ring-4 ring-emerald-500/40 shadow-2xl relative z-10">
                 <img src={avatarUrl} alt="Avatar" className="size-full object-cover" />
               </div>
-              <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping -z-0" />
+              <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping -z-0" />
             </div>
 
             <div>
@@ -284,6 +325,21 @@ const CallModal = () => {
               <p className="text-sm text-emerald-400 font-mono font-bold mt-1">
                 {formatDuration(callDuration)}
               </p>
+            </div>
+
+            {/* Voice call audio wave bars */}
+            <div className="flex items-center gap-1.5 h-8">
+              {[0.4, 0.8, 0.5, 1, 0.6, 0.9, 0.3, 0.7, 0.5].map((h, i) => (
+                <span
+                  key={i}
+                  className="w-1 bg-emerald-400/80 rounded-full animate-pulse"
+                  style={{
+                    height: `${h * 100}%`,
+                    animationDelay: `${i * 0.15}s`,
+                    animationDuration: "1s",
+                  }}
+                />
+              ))}
             </div>
           </div>
         )}

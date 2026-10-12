@@ -150,7 +150,7 @@ const MessageInput = () => {
             isSecret,
           });
           setIsSecret(false);
-        } catch (err) {
+        } catch {
           toast.error("Failed to send voice note");
         }
       };

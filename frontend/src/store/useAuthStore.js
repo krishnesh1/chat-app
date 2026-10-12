@@ -22,8 +22,7 @@ export const useAuthStore = create((set, get) => ({
       
       set({ authUser: res.data });
       get().connectSocket();
-    } catch (error) {
-      // console.log("Error in checkAuth:", error);
+    } catch {
       localStorage.removeItem("chat-token");
       set({ authUser: null });
     } finally {

@@ -19,7 +19,7 @@ import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth, onlineUsers, socket } = useAuthStore();
+  const { authUser, checkAuth, isCheckingAuth, socket } = useAuthStore();
   const { theme } = useThemeStore();
   const { initCallListeners } = useCallStore();
   const { subscribeToMessages } = useChatStore();
@@ -33,7 +33,7 @@ const App = () => {
       initCallListeners();
       subscribeToMessages();
     }
-  }, [socket]);
+  }, [socket, initCallListeners, subscribeToMessages]);
 
   if (isCheckingAuth && !authUser)
     return (

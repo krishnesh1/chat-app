@@ -18,6 +18,10 @@ const io = new Server(server, {
 // used to store online users
 const userSocketMap = {}; // { userId: socketId }
 
+// used to store pending calls when receiver is offline:
+// { [receiverUserId]: { callerId, callerSocketId, signalData, from, fromName, fromPic, isVideoCall, candidates: [], createdAt } }
+const activePendingCalls = {};
+
 function getReceiverSocketId(userId) {
   return userSocketMap[userId];
 }
@@ -48,6 +52,33 @@ io.on("connection", async (socket) => {
       }
     } catch (err) {
       console.error("Error updating delivered status on connection:", err.message);
+    }
+
+    // Check if there is an active pending call waiting for this user (user was called while offline)
+    if (activePendingCalls[userId]) {
+      const pending = activePendingCalls[userId];
+      // Deliver if call was initiated within the last 60 seconds
+      if (Date.now() - pending.createdAt < 60000) {
+        socket.emit("incomingCall", {
+          signal: pending.signalData,
+          from: pending.from,
+          fromName: pending.fromName,
+          fromPic: pending.fromPic,
+          isVideoCall: pending.isVideoCall,
+        });
+
+        // Forward all buffered ICE candidates gathered while receiver was offline
+        if (pending.candidates && pending.candidates.length > 0) {
+          pending.candidates.forEach((cand) => {
+            socket.emit("iceCandidate", { candidate: cand });
+          });
+        }
+
+        // Notify the caller that receiver has reconnected and the call is now ringing
+        io.to(pending.callerSocketId).emit("callRinging", { targetUserId: userId });
+        console.log(`📞 Pending call delivered to reconnected user ${userId}`);
+      }
+      delete activePendingCalls[userId];
     }
   }
 
@@ -100,6 +131,7 @@ io.on("connection", async (socket) => {
   socket.on("callUser", ({ userToCall, signalData, from, fromName, fromPic, isVideoCall }) => {
     const receiverSocketId = getReceiverSocketId(userToCall);
     if (receiverSocketId) {
+      // Receiver is online: deliver incomingCall and tell caller's client it is ringing
       io.to(receiverSocketId).emit("incomingCall", {
         signal: signalData,
         from,
@@ -107,13 +139,30 @@ io.on("connection", async (socket) => {
         fromPic,
         isVideoCall,
       });
-      console.log(`📞 Call initiated from ${fromName} (${from}) to ${userToCall} (Video: ${isVideoCall})`);
+      socket.emit("callRinging", { targetUserId: userToCall });
+      console.log(`📞 Call initiated from ${fromName} (${from}) to ${userToCall} (Online: Ringing)`);
     } else {
-      socket.emit("callFailed", { reason: "User is currently offline" });
+      // Receiver is offline: save pending call, caller client enters "Calling..." state
+      activePendingCalls[userToCall] = {
+        callerId: from,
+        callerSocketId: socket.id,
+        signalData,
+        from,
+        fromName,
+        fromPic,
+        isVideoCall,
+        candidates: [],
+        createdAt: Date.now(),
+      };
+      socket.emit("callStatus", { status: "calling", targetUserId: userToCall });
+      console.log(`📞 Call initiated from ${fromName} (${from}) to ${userToCall} (Offline: Queued as Calling)`);
     }
   });
 
   socket.on("answerCall", ({ to, signal }) => {
+    if (activePendingCalls[userId]) {
+      delete activePendingCalls[userId];
+    }
     const callerSocketId = getReceiverSocketId(to);
     if (callerSocketId) {
       io.to(callerSocketId).emit("callAccepted", { signal });
@@ -125,10 +174,22 @@ io.on("connection", async (socket) => {
     const targetSocketId = getReceiverSocketId(to);
     if (targetSocketId) {
       io.to(targetSocketId).emit("iceCandidate", { candidate });
+    } else if (activePendingCalls[to] && activePendingCalls[to].callerId === userId) {
+      // Buffer candidate while target is offline
+      activePendingCalls[to].candidates.push(candidate);
     }
   });
 
   socket.on("endCall", ({ to }) => {
+    // If there was a pending call to this target from the current caller, clean it up
+    if (to && activePendingCalls[to] && activePendingCalls[to].callerId === userId) {
+      delete activePendingCalls[to];
+    }
+    // If the caller itself has a pending call directed at them, clean it up
+    if (activePendingCalls[userId]) {
+      delete activePendingCalls[userId];
+    }
+
     const targetSocketId = getReceiverSocketId(to);
     if (targetSocketId) {
       io.to(targetSocketId).emit("callEnded");
@@ -137,6 +198,9 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("rejectCall", ({ to }) => {
+    if (activePendingCalls[userId]) {
+      delete activePendingCalls[userId];
+    }
     const callerSocketId = getReceiverSocketId(to);
     if (callerSocketId) {
       io.to(callerSocketId).emit("callRejected");
@@ -148,6 +212,13 @@ io.on("connection", async (socket) => {
     console.log("❌ User disconnected:", socket.id);
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
+
+    // Clean up any pending calls initiated by or waiting for this user
+    Object.keys(activePendingCalls).forEach((targetId) => {
+      if (activePendingCalls[targetId].callerId === userId || targetId === userId) {
+        delete activePendingCalls[targetId];
+      }
+    });
   });
 });
 

@@ -3,7 +3,6 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useCallStore } from "../store/useCallStore";
 import { useEffect, useState } from "react";
-import toast from "react-hot-toast";
 
 const ChatHeader = () => {
   const {
@@ -43,9 +42,6 @@ const ChatHeader = () => {
   }, [socket, selectedUser]);
 
   const handleCall = (isVideo) => {
-    if (!isOnline) {
-      toast("Contact appears offline, attempting call...", { icon: "📡" });
-    }
     startCall(selectedUser, isVideo);
   };
 

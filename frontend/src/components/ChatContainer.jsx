@@ -33,8 +33,6 @@ const ChatContainer = () => {
     getMessages,
     isMessagesLoading,
     selectedUser,
-    subscribeToMessages,
-    unsubscribeFromMessages,
     setReplyingTo,
     reactToMessage,
     deleteMessage,
@@ -58,7 +56,7 @@ const ChatContainer = () => {
 
   useEffect(() => {
     getMessages(selectedUser._id);
-  }, [selectedUser._id]);
+  }, [selectedUser._id, getMessages]);
 
   useEffect(() => {
     if (messageEndRef.current && messages) {
