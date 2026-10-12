@@ -154,6 +154,10 @@ const sendMessage = async (req, res) => {
       }
     }
 
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    // If receiver is currently online, message is delivered immediately (Double ticks)
+    const initialStatus = receiverSocketId ? "delivered" : "sent";
+
     const newMessage = new Message({
       senderId,
       receiverId,
@@ -163,7 +167,7 @@ const sendMessage = async (req, res) => {
       replyTo: replyTo || null,
       isViewOnce: Boolean(isViewOnce),
       isSecret: Boolean(isSecret),
-      status: "sent",
+      status: initialStatus,
     });
 
     await newMessage.save();
@@ -173,7 +177,8 @@ const sendMessage = async (req, res) => {
       await newMessage.populate("replyTo", "text image audio senderId");
     }
 
-    const receiverSocketId = getReceiverSocketId(receiverId);
+    // Emit to recipient's room and direct socket ID for reliable real-time reception
+    io.to(receiverId.toString()).emit("newMessage", newMessage);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
     }

@@ -43,7 +43,7 @@ const ChatContainer = () => {
     searchQuery,
     showStarredOnly,
   } = useChatStore();
-  const { authUser, socket } = useAuthStore();
+  const { authUser, socket, onlineUsers } = useAuthStore();
 
   const messageEndRef = useRef(null);
   const messageRefs = useRef({});
@@ -58,8 +58,6 @@ const ChatContainer = () => {
 
   useEffect(() => {
     getMessages(selectedUser._id);
-    subscribeToMessages();
-    return () => unsubscribeFromMessages();
   }, [selectedUser._id]);
 
   useEffect(() => {
@@ -211,20 +209,31 @@ const ChatContainer = () => {
                   </div>
                 </div>
 
-                {/* Message Header (Time & Double Blue Ticks) */}
-                <div className="chat-header mb-1 flex items-center gap-1.5 opacity-60">
-                  <span className="text-[10px] font-medium">
+                {/* Message Header (Time & Real-Time WhatsApp Ticks) */}
+                <div className="chat-header mb-1 flex items-center gap-1.5">
+                  <span className="text-[10px] font-medium text-base-content/50">
                     {formatMessageTime(message.createdAt)}
                   </span>
                   {isStarred && <Star className="size-2.5 text-amber-500 fill-amber-500 inline" />}
                   {isMe && (
-                    message.status === "read" ? (
-                      <CheckCheck className="size-3.5 text-sky-400 inline" title="Read (Double blue ticks)" />
-                    ) : message.status === "delivered" ? (
-                      <CheckCheck className="size-3.5 text-base-content/50 inline" title="Delivered" />
-                    ) : (
-                      <Check className="size-3.5 text-base-content/50 inline" title="Sent" />
-                    )
+                    <span className="inline-flex items-center">
+                      {message.status === "read" ? (
+                        <CheckCheck
+                          className="size-4 text-sky-400 font-black shrink-0 drop-shadow-[0_0_2px_rgba(56,189,248,0.6)]"
+                          title="Seen by recipient (Double blue ticks)"
+                        />
+                      ) : message.status === "delivered" || onlineUsers.includes(selectedUser._id) ? (
+                        <CheckCheck
+                          className="size-4 text-base-content/60 shrink-0"
+                          title="Delivered - User is online (Double grey ticks)"
+                        />
+                      ) : (
+                        <Check
+                          className="size-3.5 text-base-content/40 shrink-0"
+                          title="Sent - User is offline (Single grey tick)"
+                        />
+                      )}
+                    </span>
                   )}
                 </div>
 

@@ -161,14 +161,26 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
 
+    // Prevent duplicate event handlers
+    socket.off("newMessage");
+    socket.off("messageReaction");
+    socket.off("messageDeleted");
+    socket.off("messageViewedOnce");
+    socket.off("messagesDelivered");
+    socket.off("messagesRead");
+
     socket.on("newMessage", (newMessage) => {
       const { selectedUser, messages, users } = get();
+      const authUser = useAuthStore.getState().authUser;
       const isFromCurrentChat = selectedUser && selectedUser._id === newMessage.senderId;
 
       if (isFromCurrentChat) {
-        // Chat is currently open: append and mark read in real time
+        // Chat is currently open: message is immediately READ (Double Blue Ticks)
+        socket.emit("markAsRead", { senderId: newMessage.senderId });
+        axiosInstance.put(`/messages/read/${newMessage.senderId}`).catch(() => {});
+
         set({
-          messages: [...messages, newMessage],
+          messages: [...messages, { ...newMessage, status: "read" }],
           users: users.map((u) => {
             if (u._id === newMessage.senderId) {
               return {
@@ -187,11 +199,8 @@ export const useChatStore = create((set, get) => ({
             return u;
           }),
         });
-
-        // Mark read in DB and trigger blue ticks
-        axiosInstance.put(`/messages/read/${newMessage.senderId}`).catch(() => {});
       } else {
-        // Message came UNSEEN from another contact: increment unread count & sort
+        // Message arrived UNSEEN: increment unread count and sort to top
         const updatedUsers = users.map((u) => {
           if (u._id === newMessage.senderId) {
             return {
@@ -210,7 +219,7 @@ export const useChatStore = create((set, get) => ({
           return u;
         });
 
-        // Move contact with fresh unread message to top of list
+        // Re-sort: sender of new message moves to top of list
         updatedUsers.sort((a, b) => {
           const timeA = a.lastMessage ? new Date(a.lastMessage.createdAt).getTime() : 0;
           const timeB = b.lastMessage ? new Date(b.lastMessage.createdAt).getTime() : 0;
@@ -247,12 +256,44 @@ export const useChatStore = create((set, get) => ({
       });
     });
 
+    // Receiver came online: messages changed from "sent" to "delivered" (Double Grey Ticks)
+    socket.on("messagesDelivered", ({ receiverId }) => {
+      const { selectedUser, messages, users } = get();
+      const authUser = useAuthStore.getState().authUser;
+
+      if (selectedUser && receiverId === selectedUser._id) {
+        set({
+          messages: messages.map((m) =>
+            m.senderId === authUser?._id && m.status === "sent"
+              ? { ...m, status: "delivered" }
+              : m
+          ),
+        });
+      }
+
+      set({
+        users: users.map((u) => {
+          if (u._id === receiverId && u.lastMessage && u.lastMessage.status === "sent") {
+            return {
+              ...u,
+              lastMessage: { ...u.lastMessage, status: "delivered" },
+            };
+          }
+          return u;
+        }),
+      });
+    });
+
+    // Receiver opened chat: messages changed to "read" (Double Blue Ticks)
     socket.on("messagesRead", ({ readerId }) => {
       const { selectedUser, messages, users } = get();
+      const authUser = useAuthStore.getState().authUser;
+
       if (selectedUser && readerId === selectedUser._id) {
-        // All sent messages to this user have been read -> double blue ticks!
         set({
-          messages: messages.map((m) => ({ ...m, status: "read" })),
+          messages: messages.map((m) =>
+            m.senderId === authUser?._id ? { ...m, status: "read" } : m
+          ),
         });
       }
 
@@ -278,12 +319,13 @@ export const useChatStore = create((set, get) => ({
     socket.off("messageReaction");
     socket.off("messageDeleted");
     socket.off("messageViewedOnce");
+    socket.off("messagesDelivered");
     socket.off("messagesRead");
   },
 
   setSelectedUser: (selectedUser) => {
     if (selectedUser) {
-      // Clear unread count for this user in sidebar & mark read on server
+      // Clear unread count for this user in sidebar & notify server immediately
       const updatedUsers = get().users.map((u) =>
         u._id === selectedUser._id ? { ...u, unreadCount: 0 } : u
       );
@@ -295,6 +337,10 @@ export const useChatStore = create((set, get) => ({
         showStarredOnly: false,
       });
 
+      const socket = useAuthStore.getState().socket;
+      if (socket) {
+        socket.emit("markAsRead", { senderId: selectedUser._id });
+      }
       axiosInstance.put(`/messages/read/${selectedUser._id}`).catch(() => {});
     } else {
       set({ selectedUser: null, replyingTo: null, searchQuery: "", showStarredOnly: false });

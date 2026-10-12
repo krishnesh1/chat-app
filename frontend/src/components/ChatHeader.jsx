@@ -1,6 +1,7 @@
 import { X, Phone, Video, Search, Star } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
+import { useCallStore } from "../store/useCallStore";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -14,6 +15,7 @@ const ChatHeader = () => {
     setShowStarredOnly,
   } = useChatStore();
   const { onlineUsers, socket } = useAuthStore();
+  const { startCall } = useCallStore();
 
   const [isTyping, setIsTyping] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -40,10 +42,11 @@ const ChatHeader = () => {
     };
   }, [socket, selectedUser]);
 
-  const handleCall = (type) => {
-    toast(`📞 ${type} call feature coming in the next update!`, {
-      icon: "⚡",
-    });
+  const handleCall = (isVideo) => {
+    if (!isOnline) {
+      toast("Contact appears offline, attempting call...", { icon: "📡" });
+    }
+    startCall(selectedUser, isVideo);
   };
 
   return (
@@ -98,14 +101,14 @@ const ChatHeader = () => {
           <button
             type="button"
             onClick={() => setShowStarredOnly(!showStarredOnly)}
-            className={`btn btn-circle btn-sm transition-all ${
+            className={`btn btn-circle btn-xs sm:btn-sm transition-all ${
               showStarredOnly
                 ? "bg-amber-500 text-white hover:bg-amber-600"
                 : "btn-ghost text-base-content/60 hover:text-amber-500"
             }`}
             title={showStarredOnly ? "Showing Starred Messages only" : "View Starred Messages"}
           >
-            <Star className={`size-4 ${showStarredOnly ? "fill-current" : ""}`} />
+            <Star className={`size-3.5 sm:size-4 ${showStarredOnly ? "fill-current" : ""}`} />
           </button>
 
           {/* In-Chat Search Toggle */}
@@ -115,38 +118,40 @@ const ChatHeader = () => {
               setShowSearch(!showSearch);
               if (showSearch) setSearchQuery("");
             }}
-            className={`btn btn-circle btn-sm transition-all ${
+            className={`btn btn-circle btn-xs sm:btn-sm transition-all ${
               showSearch
                 ? "bg-primary text-white hover:bg-primary/90"
                 : "btn-ghost text-base-content/60 hover:text-primary"
             }`}
             title="Search messages"
           >
-            <Search className="size-4" />
+            <Search className="size-3.5 sm:size-4" />
           </button>
 
-          {/* Call buttons */}
+          {/* Voice Call button */}
           <button
             type="button"
-            onClick={() => handleCall("Voice")}
-            className="btn btn-ghost btn-circle btn-sm text-base-content/60 hover:text-primary transition-colors hidden sm:flex"
+            onClick={() => handleCall(false)}
+            className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-base-content/60 hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors flex"
             title="Voice call"
           >
-            <Phone className="size-4" />
+            <Phone className="size-3.5 sm:size-4" />
           </button>
+
+          {/* Video Call button */}
           <button
             type="button"
-            onClick={() => handleCall("Video")}
-            className="btn btn-ghost btn-circle btn-sm text-base-content/60 hover:text-primary transition-colors hidden sm:flex"
+            onClick={() => handleCall(true)}
+            className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-base-content/60 hover:text-primary hover:bg-primary/10 transition-colors flex"
             title="Video call"
           >
-            <Video className="size-4" />
+            <Video className="size-3.5 sm:size-4" />
           </button>
 
           {/* Close chat button */}
           <button
             onClick={() => setSelectedUser(null)}
-            className="btn btn-ghost btn-circle btn-sm text-base-content/70 hover:text-error hover:bg-error/10 transition-colors ml-1"
+            className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-base-content/70 hover:text-error hover:bg-error/10 transition-colors ml-1"
             title="Close chat"
           >
             <X className="size-4 sm:size-5" />

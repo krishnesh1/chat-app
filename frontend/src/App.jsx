@@ -1,4 +1,5 @@
 import Navbar from "./components/Navbar";
+import CallModal from "./components/CallModal";
 
 import HomePage from "./pages/HomePage";
 import LandingPage from "./pages/LandingPage";
@@ -10,22 +11,29 @@ import ProfilePage from "./pages/ProfilePage";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/useAuthStore";
 import { useThemeStore } from "./store/useThemeStore";
+import { useCallStore } from "./store/useCallStore";
+import { useChatStore } from "./store/useChatStore";
 import { useEffect } from "react";
 
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
+  const { authUser, checkAuth, isCheckingAuth, onlineUsers, socket } = useAuthStore();
   const { theme } = useThemeStore();
-
-  console.log({ onlineUsers });
+  const { initCallListeners } = useCallStore();
+  const { subscribeToMessages } = useChatStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  console.log({ authUser });
+  useEffect(() => {
+    if (socket) {
+      initCallListeners();
+      subscribeToMessages();
+    }
+  }, [socket]);
 
   if (isCheckingAuth && !authUser)
     return (
@@ -49,6 +57,7 @@ const App = () => {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
 
+      <CallModal />
       <Toaster />
     </div>
   );
