@@ -54,11 +54,13 @@ const Sidebar = () => {
             `}
           >
             <div className="relative mx-auto lg:mx-0">
-              <img
-                src={(user.profilePic ? user.profilePic.replace(/\.heic$/i, ".jpg") : "/avatar.png")}
-                alt={user.name}
-                className="size-12 object-cover rounded-full"
-              />
+              <div className="size-12 rounded-full overflow-hidden border">
+                <img
+                  src={(user.profilePic ? user.profilePic.replace(/\.heic$/i, ".jpg") : "/avatar.png")}
+                  alt={user.fullName || user.name}
+                  className="size-12 object-cover rounded-full"
+                />
+              </div>
               {onlineUsers.includes(user._id) && (
                 <span
                   className="absolute bottom-0 right-0 size-3 bg-green-500 

@@ -75,8 +75,8 @@ const ChatContainer = () => {
             className={`chat ${message.senderId === authUser._id ? "chat-end" : "chat-start"}`}
             ref={messageEndRef}
           >
-            <div className=" chat-image avatar">
-              <div className="size-10 rounded-full border">
+            <div className="chat-image avatar">
+              <div className="size-10 rounded-full border overflow-hidden">
                 <img
                   src={
                     (message.senderId === authUser._id
@@ -89,6 +89,7 @@ const ChatContainer = () => {
                         : "/avatar.png"
                   }
                   alt="profile pic"
+                  className="size-10 rounded-full object-cover"
                 />
               </div>
             </div>
@@ -102,7 +103,7 @@ const ChatContainer = () => {
                 <img
                   src={message.image.replace(/\.heic$/i, ".jpg")}
                   alt="Attachment"
-                  className="sm:max-w-[200px] rounded-md mb-2"
+                  className="sm:max-w-[200px] max-h-60 rounded-md mb-2 object-cover"
                 />
               )}
               {message.text && <p>{message.text}</p>}

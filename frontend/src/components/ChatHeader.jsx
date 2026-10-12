@@ -33,15 +33,18 @@ const ChatHeader = () => {
   }, [socket, selectedUser]);
 
   return (
-    <div className="p-2.5 border-b border-base-300">
+    <div className="p-2.5 border-b border-base-300 flex-shrink-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {/* Avatar */}
           <div className="avatar">
+            <div className="size-10 rounded-full relative overflow-hidden">
               <img
                 src={selectedUser.profilePic ? selectedUser.profilePic.replace(/\.heic$/i, ".jpg") : "/avatar.png"}
                 alt={selectedUser.fullName}
+                className="size-10 rounded-full object-cover"
               />
+            </div>
           </div>
 
           {/* User info */}

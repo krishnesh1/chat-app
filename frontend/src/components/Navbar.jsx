@@ -24,26 +24,37 @@ const Navbar = () => {
           <div className="flex items-center gap-2">
             <Link
               to={"/settings"}
-              className={`
-              btn btn-sm gap-2 transition-colors
-              
-              `}
+              className="btn btn-sm btn-ghost gap-2"
             >
               <Settings className="w-4 h-4" />
               <span className="hidden sm:inline">Settings</span>
             </Link>
 
-            {authUser && (
+            {authUser ? (
               <>
-                <Link to={"/profile"} className={`btn btn-sm gap-2`}>
-                  <User className="size-5" />
+                <Link to={"/chat"} className="btn btn-sm btn-ghost gap-2">
+                  <MessageSquare className="size-4 text-primary" />
+                  <span className="hidden sm:inline">Chat</span>
+                </Link>
+
+                <Link to={"/profile"} className="btn btn-sm btn-ghost gap-2">
+                  <User className="size-4" />
                   <span className="hidden sm:inline">Profile</span>
                 </Link>
 
-                <button className="flex gap-2 items-center" onClick={logout}>
-                  <LogOut className="size-5" />
+                <button className="btn btn-sm btn-outline gap-2 text-error hover:bg-error hover:text-white" onClick={logout}>
+                  <LogOut className="size-4" />
                   <span className="hidden sm:inline">Logout</span>
                 </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="btn btn-sm btn-ghost">
+                  Sign In
+                </Link>
+                <Link to="/signup" className="btn btn-sm btn-primary shadow-sm shadow-primary/20">
+                  Get Started
+                </Link>
               </>
             )}
           </div>
