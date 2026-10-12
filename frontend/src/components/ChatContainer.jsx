@@ -79,9 +79,14 @@ const ChatContainer = () => {
               <div className="size-10 rounded-full border">
                 <img
                   src={
-                    message.senderId === authUser._id
-                      ? authUser.profilePic || "/avatar.png"
-                      : selectedUser.profilePic || "/avatar.png"
+                    (message.senderId === authUser._id
+                      ? authUser.profilePic
+                      : selectedUser.profilePic)
+                        ? (message.senderId === authUser._id
+                            ? authUser.profilePic
+                            : selectedUser.profilePic
+                          ).replace(/\.heic$/i, ".jpg")
+                        : "/avatar.png"
                   }
                   alt="profile pic"
                 />
@@ -95,7 +100,7 @@ const ChatContainer = () => {
             <div className="chat-bubble flex flex-col">
               {message.image && (
                 <img
-                  src={message.image}
+                  src={message.image.replace(/\.heic$/i, ".jpg")}
                   alt="Attachment"
                   className="sm:max-w-[200px] rounded-md mb-2"
                 />

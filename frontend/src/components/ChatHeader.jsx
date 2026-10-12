@@ -38,9 +38,10 @@ const ChatHeader = () => {
         <div className="flex items-center gap-3">
           {/* Avatar */}
           <div className="avatar">
-            <div className="size-10 rounded-full relative">
-              <img src={selectedUser.profilePic || "/avatar.png"} alt={selectedUser.fullName} />
-            </div>
+              <img
+                src={selectedUser.profilePic ? selectedUser.profilePic.replace(/\.heic$/i, ".jpg") : "/avatar.png"}
+                alt={selectedUser.fullName}
+              />
           </div>
 
           {/* User info */}

@@ -33,33 +33,23 @@ Create this in your Vercel Project settings (`Settings -> Environment Variables`
 
 | Variable | Example / Description |
 |---|---|
-| `VITE_BACKEND_URL` | `https://your-backend.onrender.com` (Your Render backend domain, no trailing slash) |
+| `VITE_BACKEND_URL` | `https://chat-app-jlgx.onrender.com` (Your Render backend domain, no trailing slash) |
 
 ---
 
 ## 🚀 How to Deploy
 
-### Step 1: Deploy Backend to Render
-1. Push this repository to GitHub.
-2. Go to [Render Dashboard](https://dashboard.render.com/) -> **New** -> **Web Service**.
-3. Connect your GitHub repository.
-4. Set the configuration:
-   - **Name:** `chat-app-backend`
-   - **Root Directory:** `backend`
-   - **Runtime:** `Node`
-   - **Build Command:** `npm install`
-   - **Start Command:** `npm start`
-5. Under **Environment Variables**, add the variables listed in the backend section above.
-6. Click **Deploy Web Service**.
-7. Copy your backend URL (e.g. `https://chat-app-backend.onrender.com`).
+### Step 1: Backend on Render (Already Live! ✅)
+- **Live Backend URL:** [https://chat-app-jlgx.onrender.com](https://chat-app-jlgx.onrender.com)
+- **Live Health Check:** [https://chat-app-jlgx.onrender.com/api/health](https://chat-app-jlgx.onrender.com/api/health)
 
 ### Step 2: Prevent Render Free Tier from Sleeping (Cron Job)
 Render's free tier spins down after 15 minutes of inactivity. Use the built-in Health API with a free cron job service:
-- **Health Endpoint:** `https://<your-backend>.onrender.com/api/health`
+- **Health Endpoint:** `https://chat-app-jlgx.onrender.com/api/health`
 1. Go to [cron-job.org](https://cron-job.org) (or [UptimeRobot](https://uptimerobot.com)).
 2. Create a new Cronjob / Monitor:
-   - **URL:** `https://your-backend.onrender.com/api/health`
-   - **Schedule:** Every **10 minutes** or **14 minutes**.
+   - **URL:** `https://chat-app-jlgx.onrender.com/api/health`
+   - **Schedule:** Every **10 minutes** (or 14 minutes).
    - **Method:** `GET`
 3. This keeps your Render instance awake 24/7 without cold starts!
 

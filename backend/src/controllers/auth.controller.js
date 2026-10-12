@@ -107,13 +107,17 @@ const updateProfile = async (req, res) => {
       return res.status(400).json({ message: "Profile pic is required" });
     }
 
-    const uploadResponse = await cloudinary.uploader.upload(profilePic);
-    console.log("Cloudinary upload response:", uploadResponse);
+    const uploadResponse = await cloudinary.uploader.upload(profilePic, {
+      resource_type: "image",
+      format: "jpg",
+    });
+    const secureUrl = uploadResponse.secure_url.replace(/\.heic$/i, ".jpg");
+    console.log("Cloudinary upload response URL:", secureUrl);
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { profilePic: uploadResponse.secure_url },
+      { profilePic: secureUrl },
       { new: true }
-    );
+    ).select("-password");
     console.log("Updated user in DB:", updatedUser);
 
     res.status(200).json(updatedUser);

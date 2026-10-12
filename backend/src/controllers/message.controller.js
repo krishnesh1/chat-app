@@ -47,9 +47,12 @@ const sendMessage = async (req, res) => {
 
     let imageUrl;
     if (image) {
-      // Upload base64 image to cloudinary
-      const uploadResponse = await cloudinary.uploader.upload(image);
-      imageUrl = uploadResponse.secure_url;
+      // Upload base64 image to cloudinary and convert to JPG
+      const uploadResponse = await cloudinary.uploader.upload(image, {
+        resource_type: "image",
+        format: "jpg",
+      });
+      imageUrl = uploadResponse.secure_url.replace(/\.heic$/i, ".jpg");
     }
 
     const newMessage = new Message({
