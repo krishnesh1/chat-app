@@ -98,6 +98,7 @@ export const useCallStore = create((set, get) => ({
   remoteStream: null,
   isMuted: false,
   isVideoOff: false,
+  cameraFacing: "user", // 'user' (front) | 'environment' (back)
   callDuration: 0,
   isMinimized: false,
 
@@ -381,6 +382,59 @@ export const useCallStore = create((set, get) => ({
         videoTrack.enabled = isVideoOff;
         set({ isVideoOff: !isVideoOff });
       }
+    }
+  },
+
+  switchCamera: async () => {
+    const { localStream, cameraFacing, isVideoCall } = get();
+    if (!localStream || !isVideoCall) return;
+
+    const nextFacing = cameraFacing === "user" ? "environment" : "user";
+    try {
+      let newStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: nextFacing } },
+        });
+      } catch {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: nextFacing },
+        });
+      }
+
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+
+      // Replace track in active RTCPeerConnection sender
+      if (peerConnection) {
+        const sender = peerConnection
+          .getSenders()
+          .find((s) => s.track && s.track.kind === "video");
+        if (sender) {
+          await sender.replaceTrack(newVideoTrack);
+        }
+      }
+
+      // Stop old video track and swap into localStream
+      const oldVideoTrack = localStream.getVideoTracks()[0];
+      if (oldVideoTrack) {
+        oldVideoTrack.stop();
+        localStream.removeTrack(oldVideoTrack);
+      }
+      localStream.addTrack(newVideoTrack);
+
+      set({
+        cameraFacing: nextFacing,
+        localStream: new MediaStream(localStream.getTracks()),
+      });
+
+      toast.success(
+        nextFacing === "user" ? "Front camera active" : "Back camera active",
+        { icon: "📷" }
+      );
+    } catch (err) {
+      console.error("Camera switch error:", err);
+      toast.error("Camera flip not available on this device");
     }
   },
 

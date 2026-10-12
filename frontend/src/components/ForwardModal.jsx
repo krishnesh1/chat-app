@@ -25,15 +25,29 @@ const ForwardModal = ({ isOpen, onClose, messageToForward }) => {
   );
 
   const selectedUser = users.find((u) => u._id === selectedUserId);
+  const isMultiple = Array.isArray(messageToForward);
+  const messageCount = isMultiple ? messageToForward.length : 1;
+  const firstMessage = isMultiple ? messageToForward[0] : messageToForward;
 
   const handleForward = async () => {
     if (!selectedUserId || isSending) return;
 
     setIsSending(true);
-    const success = await forwardMessage(selectedUserId, {
-      text: messageToForward.text || "",
-      image: messageToForward.image || null,
-    });
+    let success = false;
+    if (isMultiple) {
+      for (const msg of messageToForward) {
+        await forwardMessage(selectedUserId, {
+          text: msg.text || "",
+          image: msg.image || null,
+        });
+      }
+      success = true;
+    } else {
+      success = await forwardMessage(selectedUserId, {
+        text: messageToForward.text || "",
+        image: messageToForward.image || null,
+      });
+    }
     setIsSending(false);
 
     if (success) {
@@ -57,7 +71,9 @@ const ForwardModal = ({ isOpen, onClose, messageToForward }) => {
               <Share2 className="size-4" />
             </div>
             <div>
-              <h3 className="font-bold text-base leading-tight">Forward Message</h3>
+              <h3 className="font-bold text-base leading-tight">
+                {isMultiple ? `Forward ${messageCount} Messages` : "Forward Message"}
+              </h3>
               <p className="text-xs text-base-content/60">Choose a contact to share with</p>
             </div>
           </div>
@@ -68,10 +84,14 @@ const ForwardModal = ({ isOpen, onClose, messageToForward }) => {
 
         {/* Message Preview Chip */}
         <div className="px-5 py-3 bg-base-200/50 border-b border-base-300/60 flex items-center gap-3">
-          {messageToForward.image ? (
+          {isMultiple ? (
+            <div className="size-10 rounded-xl bg-primary text-primary-content flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-sm">
+              {messageCount}
+            </div>
+          ) : firstMessage?.image ? (
             <div className="relative size-12 rounded-xl overflow-hidden border border-base-300 flex-shrink-0 bg-base-300">
               <img
-                src={messageToForward.image}
+                src={firstMessage.image}
                 alt="Forward preview"
                 className="size-full object-cover"
               />
@@ -83,10 +103,16 @@ const ForwardModal = ({ isOpen, onClose, messageToForward }) => {
           )}
           <div className="min-w-0 flex-1">
             <span className="text-[11px] font-semibold uppercase text-primary tracking-wider">
-              {messageToForward.image ? "Photo Attachment" : "Text Message"}
+              {isMultiple
+                ? `${messageCount} Messages Selected`
+                : firstMessage?.image
+                ? "Photo Attachment"
+                : "Text Message"}
             </span>
             <p className="text-xs text-base-content/80 truncate">
-              {messageToForward.text || "(Image with no caption)"}
+              {isMultiple
+                ? `${firstMessage?.text || "Message"} and ${messageCount - 1} more`
+                : firstMessage?.text || "(Image with no caption)"}
             </p>
           </div>
         </div>

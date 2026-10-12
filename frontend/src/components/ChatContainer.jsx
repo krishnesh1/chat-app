@@ -22,6 +22,11 @@ import {
   Eye,
   EyeOff,
   Smile,
+  Pencil,
+  CheckSquare,
+  CheckCircle2,
+  Clock,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -40,6 +45,12 @@ const ChatContainer = () => {
     markViewOnceAsViewed,
     searchQuery,
     showStarredOnly,
+    editMessage,
+    selectedMessageIds,
+    isSelectionMode,
+    toggleSelectMessage,
+    clearMessageSelection,
+    selectAllMessages,
   } = useChatStore();
   const { authUser, socket, onlineUsers } = useAuthStore();
 
@@ -53,6 +64,16 @@ const ChatContainer = () => {
   const [copiedId, setCopiedId] = useState(null);
   const [activeReactionMenuId, setActiveReactionMenuId] = useState(null);
   const [revealedSecrets, setRevealedSecrets] = useState({});
+
+  // Message Editing state (15m limit)
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+
+  // Swipe-to-reply state (Left-to-Right swipe)
+  const [swipeMessageId, setSwipeMessageId] = useState(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const touchStartRef = useRef({ x: 0, y: 0 });
 
   const openLightbox = (url) => {
     if (typeof window !== "undefined") {
@@ -158,6 +179,56 @@ const ChatContainer = () => {
     setRevealedSecrets((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // ===== MESSAGE EDITING (15m limit) =====
+  const startEditing = (message) => {
+    setEditingMessage(message);
+    setEditText(message.text || "");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessage || !editText.trim()) return;
+    setIsSubmittingEdit(true);
+    const success = await editMessage(editingMessage._id, editText.trim());
+    setIsSubmittingEdit(false);
+    if (success) {
+      setEditingMessage(null);
+      setEditText("");
+    }
+  };
+
+  // ===== SWIPE LEFT-TO-RIGHT TO REPLY =====
+  const handleTouchStart = (e, message) => {
+    if (message.isDeleted || isSelectionMode) return;
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+    setSwipeMessageId(message._id);
+    setSwipeOffset(0);
+  };
+
+  const handleTouchMove = (e, message) => {
+    if (swipeMessageId !== message._id || isSelectionMode) return;
+    const diffX = e.touches[0].clientX - touchStartRef.current.x;
+    const diffY = Math.abs(e.touches[0].clientY - touchStartRef.current.y);
+
+    if (diffX > 5 && diffX > diffY) {
+      const clamped = Math.min(diffX * 0.75, 60);
+      setSwipeOffset(clamped);
+    }
+  };
+
+  const handleTouchEnd = (message) => {
+    if (swipeMessageId === message._id) {
+      if (swipeOffset >= 38) {
+        setReplyingTo(message);
+        toast("Replying to message", { icon: "↩️", duration: 1500 });
+      }
+    }
+    setSwipeMessageId(null);
+    setSwipeOffset(0);
+  };
+
   // Filter messages by search and starred
   const filteredMessages = messages.filter((m) => {
     if (showStarredOnly && !m.isStarredBy?.includes(authUser._id)) {
@@ -184,6 +255,92 @@ const ChatContainer = () => {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-100/40 relative">
       <ChatHeader />
+
+      {/* SELECTION ACTION BAR (WhatsApp style) */}
+      {isSelectionMode && (
+        <div className="px-3 sm:px-4 py-2 bg-primary text-primary-content flex items-center justify-between shadow-md z-30 animate-in fade-in slide-in-from-top-1 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={clearMessageSelection}
+              className="btn btn-ghost btn-circle btn-xs text-primary-content hover:bg-black/10"
+              title="Cancel selection"
+            >
+              <X className="size-4" />
+            </button>
+            <span className="font-bold text-xs sm:text-sm">
+              {selectedMessageIds.length} selected
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {/* Select All */}
+            <button
+              onClick={selectAllMessages}
+              className="btn btn-ghost btn-xs text-primary-content hover:bg-black/10 text-xs font-semibold px-2"
+              title="Select all messages"
+            >
+              All
+            </button>
+
+            {/* Forward Selected */}
+            <button
+              onClick={() => {
+                const msgsToForward = messages.filter((m) =>
+                  selectedMessageIds.includes(m._id)
+                );
+                if (msgsToForward.length > 0) {
+                  openForwardModal(msgsToForward);
+                }
+              }}
+              disabled={selectedMessageIds.length === 0}
+              className="btn btn-ghost btn-circle btn-xs text-primary-content hover:bg-black/10 disabled:opacity-40"
+              title={`Forward ${selectedMessageIds.length} message(s)`}
+            >
+              <Share2 className="size-3.5 sm:size-4" />
+            </button>
+
+            {/* Copy Selected Text */}
+            <button
+              onClick={() => {
+                const combined = messages
+                  .filter((m) => selectedMessageIds.includes(m._id) && m.text)
+                  .map((m) => m.text)
+                  .join("\n");
+                if (combined) {
+                  navigator.clipboard.writeText(combined);
+                  toast.success("Messages copied to clipboard!");
+                  clearMessageSelection();
+                } else {
+                  toast("No text to copy in selected messages", { icon: "ℹ️" });
+                }
+              }}
+              disabled={selectedMessageIds.length === 0}
+              className="btn btn-ghost btn-circle btn-xs text-primary-content hover:bg-black/10 disabled:opacity-40"
+              title="Copy selected text"
+            >
+              <Copy className="size-3.5 sm:size-4" />
+            </button>
+
+            {/* Delete Selected (if all belong to sender) */}
+            {selectedMessageIds.every(
+              (id) => messages.find((m) => m._id === id)?.senderId === authUser._id
+            ) && selectedMessageIds.length > 0 && (
+              <button
+                onClick={async () => {
+                  for (const id of selectedMessageIds) {
+                    await deleteMessage(id);
+                  }
+                  clearMessageSelection();
+                }}
+                className="btn btn-ghost btn-circle btn-xs text-primary-content hover:bg-black/10"
+                title="Delete selected messages"
+              >
+                <Trash2 className="size-3.5 sm:size-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Messages Scroll Area with Premium Ambient Wallpaper */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 bg-radial from-base-200/10 via-base-100/40 to-base-200/20">
@@ -226,14 +383,46 @@ const ChatContainer = () => {
               .filter((r) => r.userId === authUser._id)
               .map((r) => r.emoji);
 
+            const isSelected = selectedMessageIds.includes(message._id);
+            const isSwipingThis = swipeMessageId === message._id;
+            const canEdit =
+              isMe &&
+              message.text &&
+              !message.isDeleted &&
+              Date.now() - new Date(message.createdAt).getTime() <= 15 * 60 * 1000;
+
             return (
               <div
                 key={message._id}
                 ref={(el) => {
                   if (el) messageRefs.current[message._id] = el;
                 }}
-                className={`chat ${isMe ? "chat-end" : "chat-start"} group/msg relative transition-all duration-300`}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    toggleSelectMessage(message._id);
+                  }
+                }}
+                className={`chat ${isMe ? "chat-end" : "chat-start"} group/msg relative transition-all duration-300 ${
+                  isSelectionMode ? "cursor-pointer select-none" : ""
+                } ${isSelected ? "bg-primary/5 rounded-2xl px-2 -mx-2" : ""}`}
               >
+                {/* Selection Checkbox (WhatsApp style) */}
+                {isSelectionMode && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSelectMessage(message._id);
+                    }}
+                    className={`self-center ${isMe ? "order-last ml-2" : "order-first mr-2"} shrink-0`}
+                  >
+                    {isSelected ? (
+                      <CheckCircle2 className="size-5 text-primary fill-primary" />
+                    ) : (
+                      <div className="size-5 rounded-full border-2 border-base-content/40 hover:border-primary transition-colors" />
+                    )}
+                  </div>
+                )}
+
                 {/* Avatar */}
                 <div className="chat-image avatar">
                   <div className="size-8 sm:size-9 rounded-full border border-base-300 overflow-hidden shadow-xs">
@@ -257,6 +446,14 @@ const ChatContainer = () => {
                   <span className="text-[10px] font-medium text-base-content/50">
                     {formatMessageTime(message.createdAt)}
                   </span>
+                  {message.isEdited && (
+                    <span
+                      className="text-[10px] text-base-content/50 italic flex items-center gap-0.5"
+                      title={message.editedAt ? `Edited at ${new Date(message.editedAt).toLocaleTimeString()}` : "Edited"}
+                    >
+                      • edited
+                    </span>
+                  )}
                   {isStarred && <Star className="size-2.5 text-amber-500 fill-amber-500 inline" />}
                   {isMe && (
                     <span className="inline-flex items-center">
@@ -280,8 +477,16 @@ const ChatContainer = () => {
                   )}
                 </div>
 
-                {/* Message Bubble */}
+                {/* Message Bubble with Swipe-to-reply */}
                 <div
+                  onTouchStart={(e) => handleTouchStart(e, message)}
+                  onTouchMove={(e) => handleTouchMove(e, message)}
+                  onTouchEnd={() => handleTouchEnd(message)}
+                  onTouchCancel={() => handleTouchEnd(message)}
+                  style={{
+                    transform: isSwipingThis ? `translateX(${swipeOffset}px)` : undefined,
+                    transition: isSwipingThis ? "none" : "transform 0.2s ease-out",
+                  }}
                   className={`chat-bubble relative flex flex-col p-3 rounded-2xl shadow-sm max-w-[85%] sm:max-w-[75%] ${
                     message.isDeleted
                       ? "bg-base-200/50 text-base-content/50 italic border border-base-300/40"
@@ -290,6 +495,18 @@ const ChatContainer = () => {
                       : "bg-base-100 dark:bg-base-200/90 text-base-content border border-base-300/70 rounded-tl-xs shadow-xs"
                   }`}
                 >
+                  {/* Swipe-to-reply reveal icon indicator */}
+                  {isSwipingThis && swipeOffset > 10 && (
+                    <div
+                      className="absolute -left-9 top-1/2 -translate-y-1/2 size-7 rounded-full bg-primary/20 text-primary flex items-center justify-center transition-all shadow-sm"
+                      style={{
+                        opacity: Math.min(swipeOffset / 35, 1),
+                        transform: `scale(${Math.min(swipeOffset / 35, 1)})`,
+                      }}
+                    >
+                      <Reply className="size-4" />
+                    </div>
+                  )}
                   {/* QUOTED REPLY PREVIEW (WhatsApp style) */}
                   {message.replyTo && !message.isDeleted && (
                     <div
@@ -547,6 +764,28 @@ const ChatContainer = () => {
                         <Star className={`size-3.5 ${isStarred ? "fill-current" : ""}`} />
                       </button>
 
+                      {/* Edit Message (Sender only & within 15 mins) */}
+                      {canEdit && (
+                        <button
+                          onClick={() => startEditing(message)}
+                          className="btn btn-ghost btn-xs btn-square text-base-content/70 hover:text-primary"
+                          title="Edit message (within 15m)"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                      )}
+
+                      {/* Select Message (Multi-Select) */}
+                      <button
+                        onClick={() => toggleSelectMessage(message._id)}
+                        className={`btn btn-ghost btn-xs btn-square ${
+                          isSelected ? "text-primary bg-primary/10" : "text-base-content/70 hover:text-primary"
+                        }`}
+                        title="Select message"
+                      >
+                        <CheckSquare className="size-3.5" />
+                      </button>
+
                       {/* Forward */}
                       <button
                         onClick={() => setForwardMessageData(message)}
@@ -635,6 +874,82 @@ const ChatContainer = () => {
         messageToForward={forwardMessageData}
         onClose={closeForwardModal}
       />
+
+      {/* Edit Message Modal (15-minute window) */}
+      {editingMessage && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-base-100 border border-base-300 rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-base-300/60">
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Pencil className="size-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-base-content">Edit Message</h3>
+                  <p className="text-[11px] text-base-content/60 flex items-center gap-1">
+                    <Clock className="size-3 text-primary shrink-0" />
+                    <span>Editable within 15 minutes of sending</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingMessage(null)}
+                className="btn btn-ghost btn-circle btn-xs text-base-content/60 hover:text-base-content"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                rows={4}
+                className="textarea textarea-bordered w-full text-sm leading-relaxed focus:textarea-primary rounded-2xl resize-none"
+                placeholder="Edit your message..."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSaveEdit();
+                  }
+                }}
+              />
+              <p className="text-[10px] text-base-content/50 text-right">
+                Press Enter to save, Shift+Enter for new line
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setEditingMessage(null)}
+                className="btn btn-sm btn-ghost rounded-xl"
+                disabled={isSubmittingEdit}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={
+                  isSubmittingEdit ||
+                  !editText.trim() ||
+                  editText.trim() === editingMessage.text
+                }
+                className="btn btn-sm btn-primary rounded-xl gap-1.5"
+              >
+                {isSubmittingEdit ? (
+                  <span className="loading loading-spinner loading-xs" />
+                ) : (
+                  <Check className="size-4" />
+                )}
+                <span>Save Edit</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -12,10 +12,26 @@ export const useChatStore = create((set, get) => ({
   replyingTo: null,
   searchQuery: "",
   showStarredOnly: false,
+  selectedMessageIds: [],
+  isSelectionMode: false,
 
   setReplyingTo: (message) => set({ replyingTo: message }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setShowStarredOnly: (val) => set({ showStarredOnly: val }),
+  setSelectedMessageIds: (ids) => set({ selectedMessageIds: ids, isSelectionMode: ids.length > 0 }),
+  toggleSelectMessage: (id) => {
+    const current = get().selectedMessageIds;
+    const updated = current.includes(id)
+      ? current.filter((mId) => mId !== id)
+      : [...current, id];
+    set({ selectedMessageIds: updated, isSelectionMode: updated.length > 0 });
+  },
+  clearMessageSelection: () => set({ selectedMessageIds: [], isSelectionMode: false }),
+  selectAllMessages: () =>
+    set({
+      selectedMessageIds: get().messages.map((m) => m._id),
+      isSelectionMode: true,
+    }),
 
   getUsers: async () => {
     set({ isUsersLoading: true });
@@ -131,6 +147,22 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  editMessage: async (messageId, newText) => {
+    try {
+      const res = await axiosInstance.put(`/messages/edit/${messageId}`, { text: newText });
+      set({
+        messages: get().messages.map((m) =>
+          m._id === messageId ? res.data : m
+        ),
+      });
+      toast.success("Message edited successfully");
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to edit message");
+      return false;
+    }
+  },
+
   toggleStarMessage: async (messageId) => {
     try {
       const res = await axiosInstance.put(`/messages/star/${messageId}`);
@@ -168,6 +200,15 @@ export const useChatStore = create((set, get) => ({
     socket.off("messageViewedOnce");
     socket.off("messagesDelivered");
     socket.off("messagesRead");
+    socket.off("messageEdited");
+
+    socket.on("messageEdited", (editedMessage) => {
+      set({
+        messages: get().messages.map((m) =>
+          m._id === editedMessage._id ? editedMessage : m
+        ),
+      });
+    });
 
     socket.on("newMessage", (newMessage) => {
       const { selectedUser, messages, users } = get();
@@ -320,6 +361,7 @@ export const useChatStore = create((set, get) => ({
     socket.off("messageViewedOnce");
     socket.off("messagesDelivered");
     socket.off("messagesRead");
+    socket.off("messageEdited");
   },
 
   setSelectedUser: (selectedUser, pushHistory = true) => {
@@ -346,6 +388,8 @@ export const useChatStore = create((set, get) => ({
         replyingTo: null,
         searchQuery: "",
         showStarredOnly: false,
+        selectedMessageIds: [],
+        isSelectionMode: false,
       });
 
       const socket = useAuthStore.getState().socket;
@@ -354,7 +398,14 @@ export const useChatStore = create((set, get) => ({
       }
       axiosInstance.put(`/messages/read/${selectedUser._id}`).catch(() => {});
     } else {
-      set({ selectedUser: null, replyingTo: null, searchQuery: "", showStarredOnly: false });
+      set({
+        selectedUser: null,
+        replyingTo: null,
+        searchQuery: "",
+        showStarredOnly: false,
+        selectedMessageIds: [],
+        isSelectionMode: false,
+      });
     }
   },
 }));

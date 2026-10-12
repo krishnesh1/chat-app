@@ -3,7 +3,7 @@
 const User = require("../models/user.model.js");
 const Message = require("../models/message.model.js");
 const cloudinary = require("../lib/cloudinary.js");
-const { getReceiverSocketId, io } = require("../lib/socket.js");
+const { getReceiverSocketId, io, emitToUser } = require("../lib/socket.js");
 
 // ===== GET USERS FOR SIDEBAR WITH UNREAD COUNTS & LAST MESSAGE =====
 const getUsersForSidebar = async (req, res) => {
@@ -325,6 +325,60 @@ const markViewOnceAsViewed = async (req, res) => {
   }
 };
 
+// ===== EDIT TEXT MESSAGE (UNDER 15 MINUTES) =====
+const editMessage = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    const { text } = req.body;
+    const userId = req.user._id;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: "Message text cannot be empty" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Only sender can edit their own message
+    if (message.senderId.toString() !== userId.toString()) {
+      return res.status(403).json({ error: "You can only edit your own messages" });
+    }
+
+    if (message.isDeleted) {
+      return res.status(400).json({ error: "Cannot edit a deleted message" });
+    }
+
+    // 15-minute time limit check
+    const FIFTEEN_MINUTES = 15 * 60 * 1000;
+    const timeElapsed = Date.now() - new Date(message.createdAt).getTime();
+    if (timeElapsed > FIFTEEN_MINUTES) {
+      return res.status(400).json({
+        error: "Message can only be edited within 15 minutes of sending",
+      });
+    }
+
+    message.text = text.trim();
+    message.isEdited = true;
+    message.editedAt = new Date();
+    await message.save();
+
+    if (message.replyTo) {
+      await message.populate("replyTo", "text image audio senderId");
+    }
+
+    // Real-time broadcast to both receiver and sender
+    emitToUser(message.receiverId.toString(), "messageEdited", message);
+    emitToUser(message.senderId.toString(), "messageEdited", message);
+
+    res.status(200).json(message);
+  } catch (error) {
+    console.error("Error in editMessage controller:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 // ===== EXPORTS =====
 module.exports = {
   getUsersForSidebar,
@@ -335,4 +389,5 @@ module.exports = {
   toggleStarMessage,
   markViewOnceAsViewed,
   markMessagesAsRead,
+  editMessage,
 };

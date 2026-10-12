@@ -8,6 +8,7 @@ import {
   Mic,
   MicOff,
   Minimize2,
+  SwitchCamera,
 } from "lucide-react";
 
 const CallModal = () => {
@@ -21,6 +22,8 @@ const CallModal = () => {
     remoteStream,
     isMuted,
     isVideoOff,
+    cameraFacing,
+    switchCamera,
     callDuration,
     isMinimized,
     setIsMinimized,
@@ -296,9 +299,9 @@ const CallModal = () => {
                 autoPlay
                 playsInline
                 muted
-                className={`w-full h-full object-cover scale-x-[-1] ${
-                  isVideoOff ? "hidden" : "block"
-                }`}
+                className={`w-full h-full object-cover ${
+                  cameraFacing === "user" ? "scale-x-[-1]" : ""
+                } ${isVideoOff ? "hidden" : "block"}`}
               />
               {isVideoOff && (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900 text-white/60 p-2 text-center text-[10px] sm:text-xs">
@@ -372,6 +375,17 @@ const CallModal = () => {
             title={isVideoOff ? "Turn on camera" : "Turn off camera"}
           >
             {isVideoOff ? <VideoOff className="size-4 sm:size-5" /> : <Video className="size-4 sm:size-5" />}
+          </button>
+        )}
+
+        {/* Switch Front/Back Camera */}
+        {isVideoCall && (
+          <button
+            onClick={switchCamera}
+            className="size-11 sm:size-12 rounded-full flex items-center justify-center transition-all bg-white/15 text-white hover:bg-white/25 active:scale-95"
+            title={cameraFacing === "user" ? "Switch to back camera" : "Switch to front camera"}
+          >
+            <SwitchCamera className="size-4 sm:size-5" />
           </button>
         )}
 

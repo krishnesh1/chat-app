@@ -3,6 +3,7 @@ import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 import {
   Image,
+  Camera,
   Send,
   X,
   Mic,
@@ -22,6 +23,7 @@ const MessageInput = () => {
   const [isViewOnce, setIsViewOnce] = useState(false);
   const [isSecret, setIsSecret] = useState(false);
   const [showAiSuggestions, setShowAiSuggestions] = useState(false);
+  const [showCameraOptions, setShowCameraOptions] = useState(false);
 
   // Audio Recording States
   const [isRecording, setIsRecording] = useState(false);
@@ -31,6 +33,8 @@ const MessageInput = () => {
   const recordingIntervalRef = useRef(null);
 
   const fileInputRef = useRef(null);
+  const rearCameraInputRef = useRef(null);
+  const frontCameraInputRef = useRef(null);
   const typingTimeout = useRef(null);
 
   const { sendMessage, selectedUser, replyingTo, setReplyingTo } = useChatStore();
@@ -360,7 +364,7 @@ const MessageInput = () => {
         /* STANDARD INPUT FORM */
         <form onSubmit={handleSendMessage} className="flex items-center gap-1.5 sm:gap-2">
           <div className="flex-1 min-w-0 flex items-center gap-1 sm:gap-2 bg-base-200/60 hover:bg-base-200/80 transition-colors rounded-2xl px-2 sm:px-3 py-1.5 border border-base-300/60 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20">
-            {/* Hidden file input */}
+            {/* Hidden file input (Gallery/All Images) */}
             <input
               type="file"
               accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif"
@@ -369,17 +373,78 @@ const MessageInput = () => {
               onChange={handleImageChange}
             />
 
-            {/* Attach Image button */}
+            {/* Hidden Back Camera Input */}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              ref={rearCameraInputRef}
+              onChange={handleImageChange}
+            />
+
+            {/* Hidden Front Camera Input */}
+            <input
+              type="file"
+              accept="image/*"
+              capture="user"
+              className="hidden"
+              ref={frontCameraInputRef}
+              onChange={handleImageChange}
+            />
+
+            {/* Gallery Image button */}
             <button
               type="button"
               className={`btn btn-xs sm:btn-sm btn-ghost btn-circle shrink-0 transition-all ${
                 imagePreview ? "text-primary bg-primary/10" : "text-base-content/60 hover:text-primary"
               }`}
               onClick={() => fileInputRef.current?.click()}
-              title="Attach high quality photo or camera image"
+              title="Upload photo from gallery"
             >
               <Image className="size-4 sm:size-5" />
             </button>
+
+            {/* Camera Options Picker (Back / Front Camera) */}
+            <div className="relative">
+              <button
+                type="button"
+                className={`btn btn-xs sm:btn-sm btn-ghost btn-circle shrink-0 transition-all ${
+                  showCameraOptions ? "text-primary bg-primary/10" : "text-base-content/60 hover:text-primary"
+                }`}
+                onClick={() => setShowCameraOptions(!showCameraOptions)}
+                title="Camera (Take photo with Back or Front camera)"
+              >
+                <Camera className="size-4 sm:size-5" />
+              </button>
+
+              {showCameraOptions && (
+                <div className="absolute bottom-full mb-2 left-0 bg-base-100/95 backdrop-blur-xl border border-base-300 shadow-2xl rounded-2xl p-1.5 flex flex-col gap-1 z-40 min-w-[170px] animate-in fade-in slide-in-from-bottom-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCameraOptions(false);
+                      rearCameraInputRef.current?.click();
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-xl hover:bg-primary/10 hover:text-primary text-base-content text-left transition-colors"
+                  >
+                    <span className="text-base">📷</span>
+                    <span>Rear / Back Camera</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCameraOptions(false);
+                      frontCameraInputRef.current?.click();
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-xl hover:bg-primary/10 hover:text-primary text-base-content text-left transition-colors"
+                  >
+                    <span className="text-base">🤳</span>
+                    <span>Front / Selfie Camera</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Secret Whisper Toggle (Unique Feature) */}
             <button

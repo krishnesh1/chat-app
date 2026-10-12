@@ -267,4 +267,4 @@ io.on("connection", async (socket) => {
   });
 });
 
-module.exports = { io, app, server, getReceiverSocketId };
+module.exports = { io, app, server, getReceiverSocketId, emitToUser };
