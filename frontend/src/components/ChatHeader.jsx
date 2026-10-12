@@ -41,6 +41,45 @@ const ChatHeader = () => {
     };
   }, [socket, selectedUser]);
 
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.state?.chatAppStep === "chat") {
+      window.history.back();
+    } else {
+      setSelectedUser(null, false);
+    }
+  };
+
+  const toggleSearch = () => {
+    if (!showSearch) {
+      if (typeof window !== "undefined") {
+        window.history.pushState({ chatAppStep: "search" }, "");
+      }
+      setShowSearch(true);
+    } else {
+      closeSearch();
+    }
+  };
+
+  const closeSearch = () => {
+    if (typeof window !== "undefined" && window.history.state?.chatAppStep === "search") {
+      window.history.back();
+    } else {
+      setShowSearch(false);
+      setSearchQuery("");
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (showSearch && event.state?.chatAppStep !== "search") {
+        setShowSearch(false);
+        setSearchQuery("");
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [showSearch, setSearchQuery]);
+
   const handleCall = (isVideo) => {
     startCall(selectedUser, isVideo);
   };
@@ -51,7 +90,7 @@ const ChatHeader = () => {
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
           {/* Mobile Back Button (WhatsApp / Telegram style) */}
           <button
-            onClick={() => setSelectedUser(null)}
+            onClick={handleBack}
             className="btn btn-ghost btn-circle btn-xs text-base-content/70 hover:text-primary sm:hidden flex shrink-0 -ml-1"
             title="Back to contacts"
           >
@@ -119,10 +158,7 @@ const ChatHeader = () => {
           {/* In-Chat Search Toggle */}
           <button
             type="button"
-            onClick={() => {
-              setShowSearch(!showSearch);
-              if (showSearch) setSearchQuery("");
-            }}
+            onClick={toggleSearch}
             className={`btn btn-circle btn-xs sm:btn-sm transition-all ${
               showSearch
                 ? "bg-primary text-white hover:bg-primary/90"
@@ -155,7 +191,7 @@ const ChatHeader = () => {
 
           {/* Close chat button (desktop only, mobile uses left back arrow) */}
           <button
-            onClick={() => setSelectedUser(null)}
+            onClick={handleBack}
             className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-base-content/70 hover:text-error hover:bg-error/10 transition-colors ml-0.5 sm:ml-1 hidden sm:flex"
             title="Close chat"
           >
@@ -179,7 +215,7 @@ const ChatHeader = () => {
             />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery("")}
+                onClick={closeSearch}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content"
               >
                 <X className="size-3" />

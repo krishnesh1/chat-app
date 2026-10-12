@@ -35,6 +35,37 @@ const App = () => {
     }
   }, [socket, initCallListeners, subscribeToMessages]);
 
+  // Handle mobile/browser back-press events for 1-step back navigation
+  useEffect(() => {
+    if (!useChatStore.getState().selectedUser && window.history.state?.chatAppStep) {
+      window.history.replaceState(null, "");
+    }
+
+    const handlePopState = (event) => {
+      const currentSelectedUser = useChatStore.getState().selectedUser;
+      if (currentSelectedUser) {
+        if (!event.state || event.state.chatAppStep !== "chat") {
+          useChatStore.getState().setSelectedUser(null, false);
+        } else if (
+          event.state.chatAppStep === "chat" &&
+          event.state.userId !== currentSelectedUser._id
+        ) {
+          const user = useChatStore
+            .getState()
+            .users.find((u) => u._id === event.state.userId);
+          if (user) {
+            useChatStore.getState().setSelectedUser(user, false);
+          } else {
+            useChatStore.getState().setSelectedUser(null, false);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   if (isCheckingAuth && !authUser)
     return (
       <div className="flex items-center justify-center h-screen">

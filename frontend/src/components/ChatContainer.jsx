@@ -47,12 +47,57 @@ const ChatContainer = () => {
   const messageRefs = useRef({});
   const [typingUser, setTypingUser] = useState("");
 
-  // Modals and interactive states
+  // Modals and interactive states with browser history integration
   const [lightboxImage, setLightboxImage] = useState(null);
   const [forwardMessageData, setForwardMessageData] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [activeReactionMenuId, setActiveReactionMenuId] = useState(null);
   const [revealedSecrets, setRevealedSecrets] = useState({});
+
+  const openLightbox = (url) => {
+    if (typeof window !== "undefined") {
+      window.history.pushState({ chatAppStep: "lightbox" }, "");
+    }
+    setLightboxImage(url);
+  };
+
+  const closeLightbox = () => {
+    if (typeof window !== "undefined" && window.history.state?.chatAppStep === "lightbox") {
+      window.history.back();
+    } else {
+      setLightboxImage(null);
+    }
+  };
+
+  const openForwardModal = (message) => {
+    if (typeof window !== "undefined") {
+      window.history.pushState({ chatAppStep: "forward" }, "");
+    }
+    setForwardMessageData(message);
+  };
+
+  const closeForwardModal = () => {
+    if (typeof window !== "undefined" && window.history.state?.chatAppStep === "forward") {
+      window.history.back();
+    } else {
+      setForwardMessageData(null);
+    }
+  };
+
+  // Handle mobile/browser back press for modal layers inside chat
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (lightboxImage && event.state?.chatAppStep !== "lightbox") {
+        setLightboxImage(null);
+      }
+      if (forwardMessageData && event.state?.chatAppStep !== "forward") {
+        setForwardMessageData(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [lightboxImage, forwardMessageData]);
 
   useEffect(() => {
     getMessages(selectedUser._id);
@@ -284,7 +329,7 @@ const ChatContainer = () => {
                         ) : (
                           <div
                             onClick={() => {
-                              setLightboxImage(imageUrl);
+                              openLightbox(imageUrl);
                               markViewOnceAsViewed(message._id);
                             }}
                             className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-xs font-semibold cursor-pointer transition-all shadow-xs"
@@ -316,7 +361,7 @@ const ChatContainer = () => {
                             <img
                               src={imageUrl}
                               alt="Attachment"
-                              onClick={() => !message.isSecret || isSecretRevealed ? setLightboxImage(imageUrl) : null}
+                              onClick={() => !message.isSecret || isSecretRevealed ? openLightbox(imageUrl) : null}
                               className="w-full max-h-80 object-cover cursor-pointer hover:scale-[1.01] transition-transform duration-300"
                             />
 
@@ -338,7 +383,7 @@ const ChatContainer = () => {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setForwardMessageData(message);
+                                      openForwardModal(message);
                                     }}
                                     className="btn btn-xs btn-circle bg-black/60 hover:bg-black/90 text-white border-white/20"
                                     title="Forward photo"
@@ -346,7 +391,7 @@ const ChatContainer = () => {
                                     <Share2 className="size-3.5" />
                                   </button>
                                   <button
-                                    onClick={() => setLightboxImage(imageUrl)}
+                                    onClick={() => openLightbox(imageUrl)}
                                     className="btn btn-xs btn-circle bg-black/60 hover:bg-black/90 text-white border-white/20"
                                     title="View full screen"
                                   >
@@ -572,9 +617,14 @@ const ChatContainer = () => {
       <ImageLightbox
         isOpen={!!lightboxImage}
         imageUrl={lightboxImage}
-        onClose={() => setLightboxImage(null)}
+        onClose={closeLightbox}
         onForward={(data) => {
           setLightboxImage(null);
+          if (typeof window !== "undefined" && window.history.state?.chatAppStep === "lightbox") {
+            window.history.replaceState({ chatAppStep: "forward" }, "");
+          } else if (typeof window !== "undefined") {
+            window.history.pushState({ chatAppStep: "forward" }, "");
+          }
           setForwardMessageData(data);
         }}
       />
@@ -583,7 +633,7 @@ const ChatContainer = () => {
       <ForwardModal
         isOpen={!!forwardMessageData}
         messageToForward={forwardMessageData}
-        onClose={() => setForwardMessageData(null)}
+        onClose={closeForwardModal}
       />
     </div>
   );

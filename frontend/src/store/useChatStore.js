@@ -322,8 +322,20 @@ export const useChatStore = create((set, get) => ({
     socket.off("messagesRead");
   },
 
-  setSelectedUser: (selectedUser) => {
+  setSelectedUser: (selectedUser, pushHistory = true) => {
     if (selectedUser) {
+      if (pushHistory && typeof window !== "undefined") {
+        if (
+          window.history.state?.chatAppStep !== "chat" ||
+          window.history.state?.userId !== selectedUser._id
+        ) {
+          window.history.pushState(
+            { chatAppStep: "chat", userId: selectedUser._id },
+            ""
+          );
+        }
+      }
+
       // Clear unread count for this user in sidebar & notify server immediately
       const updatedUsers = get().users.map((u) =>
         u._id === selectedUser._id ? { ...u, unreadCount: 0 } : u
