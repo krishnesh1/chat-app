@@ -1,4 +1,4 @@
-import { X, Phone, Video, Search, Star } from "lucide-react";
+import { X, Phone, Video, Search, Star, ArrowLeft } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useCallStore } from "../store/useCallStore";
@@ -46,12 +46,21 @@ const ChatHeader = () => {
   };
 
   return (
-    <div className="px-4 py-3 border-b border-base-300/60 bg-base-100/70 backdrop-blur-md flex-shrink-0">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-base-300/60 bg-base-100/70 backdrop-blur-md flex-shrink-0">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* Mobile Back Button (WhatsApp / Telegram style) */}
+          <button
+            onClick={() => setSelectedUser(null)}
+            className="btn btn-ghost btn-circle btn-xs text-base-content/70 hover:text-primary sm:hidden flex shrink-0 -ml-1"
+            title="Back to contacts"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
+
           {/* Avatar with status indicator */}
-          <div className="relative">
-            <div className="size-10 sm:size-11 rounded-full overflow-hidden ring-2 ring-base-300/80 shadow-xs">
+          <div className="relative shrink-0">
+            <div className="size-9 sm:size-11 rounded-full overflow-hidden ring-2 ring-base-300/80 shadow-xs">
               <img
                 src={selectedUser.profilePic ? selectedUser.profilePic.replace(/\.heic$/i, ".jpg") : "/avatar.png"}
                 alt={selectedUser.fullName}
@@ -59,13 +68,13 @@ const ChatHeader = () => {
               />
             </div>
             {isOnline && (
-              <span className="absolute bottom-0 right-0 size-3 bg-emerald-500 rounded-full ring-2 ring-base-100 animate-pulse" />
+              <span className="absolute bottom-0 right-0 size-2.5 sm:size-3 bg-emerald-500 rounded-full ring-2 ring-base-100 animate-pulse" />
             )}
           </div>
 
           {/* User info */}
-          <div>
-            <h3 className="font-semibold text-sm sm:text-base leading-tight">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm sm:text-base leading-tight truncate max-w-[120px] xs:max-w-[180px] sm:max-w-none">
               {selectedUser.fullName}
             </h3>
             <div className="flex items-center gap-1.5 mt-0.5">
@@ -92,7 +101,7 @@ const ChatHeader = () => {
         </div>
 
         {/* Action controls */}
-        <div className="flex items-center gap-1 sm:gap-1.5">
+        <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
           {/* Starred Messages Filter (WhatsApp style) */}
           <button
             type="button"
@@ -144,10 +153,10 @@ const ChatHeader = () => {
             <Video className="size-3.5 sm:size-4" />
           </button>
 
-          {/* Close chat button */}
+          {/* Close chat button (desktop only, mobile uses left back arrow) */}
           <button
             onClick={() => setSelectedUser(null)}
-            className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-base-content/70 hover:text-error hover:bg-error/10 transition-colors ml-1"
+            className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-base-content/70 hover:text-error hover:bg-error/10 transition-colors ml-0.5 sm:ml-1 hidden sm:flex"
             title="Close chat"
           >
             <X className="size-4 sm:size-5" />

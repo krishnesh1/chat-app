@@ -30,8 +30,8 @@ const Sidebar = () => {
   return (
     <aside
       className={`h-full border-r border-base-300/80 bg-base-100/70 backdrop-blur-2xl flex flex-col transition-all duration-300 select-none ${
-        isCollapsed ? "w-20" : "w-20 sm:w-72 md:w-80"
-      }`}
+        selectedUser ? "hidden sm:flex" : "flex w-full"
+      } ${isCollapsed ? "sm:w-20" : "sm:w-72 md:w-80"}`}
     >
       {/* Top Header */}
       <div className="border-b border-base-300/80 p-3 sm:p-4 flex flex-col gap-2.5 shrink-0">
@@ -43,7 +43,7 @@ const Sidebar = () => {
                 <span className="absolute -top-1 -right-1 size-3 bg-emerald-500 rounded-full ring-2 ring-base-100 animate-pulse" />
               )}
             </div>
-            <div className={`hidden ${isCollapsed ? "" : "sm:flex"} items-center gap-2`}>
+            <div className={`${isCollapsed ? "hidden" : "flex"} items-center gap-2`}>
               <span className="font-bold text-base tracking-tight">Messages</span>
               {totalUnreadCount > 0 && (
                 <span className="bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
@@ -55,8 +55,8 @@ const Sidebar = () => {
 
           <div className="flex items-center gap-1">
             <div
-              className={`hidden ${
-                isCollapsed ? "" : "sm:flex"
+              className={`${
+                isCollapsed ? "hidden" : "flex"
               } items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20`}
             >
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -75,7 +75,7 @@ const Sidebar = () => {
         </div>
 
         {/* Contact Search Bar */}
-        <div className={`hidden ${isCollapsed ? "" : "sm:block"} relative`}>
+        <div className={`${isCollapsed ? "hidden" : "block"} relative`}>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-base-content/40" />
           <input
             type="text"
@@ -95,7 +95,7 @@ const Sidebar = () => {
         </div>
 
         {/* Online filter toggle */}
-        <div className={`hidden ${isCollapsed ? "" : "sm:flex"} items-center justify-between text-xs`}>
+        <div className={`${isCollapsed ? "hidden" : "flex"} items-center justify-between text-xs`}>
           <label className="cursor-pointer flex items-center gap-2 font-medium text-base-content/70 hover:text-base-content">
             <input
               type="checkbox"
@@ -142,7 +142,7 @@ const Sidebar = () => {
                 `}
               >
                 {/* Avatar with Status Pulse & Unread Pill */}
-                <div className="relative mx-auto sm:mx-0 flex-shrink-0">
+                <div className={`relative ${isCollapsed ? "mx-auto" : "mx-0"} flex-shrink-0`}>
                   <div className="size-11 sm:size-12 rounded-2xl overflow-hidden border border-base-300 shadow-xs">
                     <img
                       src={user.profilePic ? user.profilePic.replace(/\.heic$/i, ".jpg") : "/avatar.png"}
@@ -165,7 +165,7 @@ const Sidebar = () => {
                 </div>
 
                 {/* User info, last message snippet & Unread count badge */}
-                <div className={`hidden ${isCollapsed ? "" : "sm:block"} text-left min-w-0 flex-1`}>
+                <div className={`${isCollapsed ? "hidden" : "block"} text-left min-w-0 flex-1`}>
                   <div className="flex items-center justify-between gap-1">
                     <h4
                       className={`text-sm font-semibold truncate leading-tight ${

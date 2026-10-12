@@ -2,7 +2,7 @@ import { MessageSquare, Sparkles, Image, ShieldCheck, Share2 } from "lucide-reac
 
 const NoChatSelected = () => {
   return (
-    <div className="w-full flex flex-1 flex-col items-center justify-center p-8 sm:p-16 bg-base-100/40 relative">
+    <div className="hidden sm:flex w-full flex-1 flex-col items-center justify-center p-8 sm:p-16 bg-base-100/40 relative">
       <div className="max-w-md text-center space-y-6">
         {/* Animated Icon Display */}
         <div className="flex justify-center mb-2">
