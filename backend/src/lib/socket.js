@@ -27,6 +27,20 @@ function getReceiverSocketId(userId) {
   return userSocketMap[userId.toString()] || userSocketMap[userId];
 }
 
+function emitToUser(userId, event, data) {
+  if (!userId) return;
+  const userIdStr = userId.toString();
+  const room = io.sockets.adapter.rooms.get(userIdStr);
+  if (room && room.size > 0) {
+    io.to(userIdStr).emit(event, data);
+  } else {
+    const socketId = getReceiverSocketId(userIdStr);
+    if (socketId) {
+      io.to(socketId).emit(event, data);
+    }
+  }
+}
+
 io.on("connection", async (socket) => {
   console.log("✅ User connected:", socket.id);
 
@@ -77,10 +91,7 @@ io.on("connection", async (socket) => {
         }
 
         // Notify caller that receiver reconnected and call is now ringing
-        io.to(pending.callerId.toString()).emit("callRinging", { targetUserId: userId });
-        if (pending.callerSocketId) {
-          io.to(pending.callerSocketId).emit("callRinging", { targetUserId: userId });
-        }
+        emitToUser(pending.callerId, "callRinging", { targetUserId: userId });
         console.log(`📞 Pending call delivered to reconnected user ${userId}`);
       }
       delete activePendingCalls[userId];
@@ -143,23 +154,14 @@ io.on("connection", async (socket) => {
     const isTargetOnline = (targetRoom && targetRoom.size > 0) || Boolean(receiverSocketId);
 
     if (isTargetOnline) {
-      // Receiver is online: deliver incomingCall to user room AND direct socket
-      io.to(targetUserId).emit("incomingCall", {
+      // Deliver incomingCall ONCE to the receiver
+      emitToUser(targetUserId, "incomingCall", {
         signal: signalData,
         from,
         fromName,
         fromPic,
         isVideoCall,
       });
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit("incomingCall", {
-          signal: signalData,
-          from,
-          fromName,
-          fromPic,
-          isVideoCall,
-        });
-      }
       socket.emit("callRinging", { targetUserId });
       console.log(`📞 Call initiated from ${fromName} (${from}) to ${targetUserId} (Online: Ringing)`);
     } else {
@@ -186,25 +188,22 @@ io.on("connection", async (socket) => {
     if (activePendingCalls[userId]) {
       delete activePendingCalls[userId];
     }
-    const callerSocketId = getReceiverSocketId(callerId);
 
-    // Deliver callAccepted to caller's room AND direct socket ID
-    io.to(callerId).emit("callAccepted", { signal });
-    if (callerSocketId) {
-      io.to(callerSocketId).emit("callAccepted", { signal });
-    }
+    // Deliver callAccepted ONCE to caller
+    emitToUser(callerId, "callAccepted", { signal });
     console.log(`✅ Call accepted by ${userId} for caller ${callerId}`);
   });
 
   socket.on("iceCandidate", ({ to, candidate }) => {
     if (!to || !candidate) return;
     const targetUserId = to.toString();
-    const targetSocketId = getReceiverSocketId(targetUserId);
 
-    // Forward ICE candidate to target's room AND direct socket
-    io.to(targetUserId).emit("iceCandidate", { candidate });
-    if (targetSocketId) {
-      io.to(targetSocketId).emit("iceCandidate", { candidate });
+    const targetRoom = io.sockets.adapter.rooms.get(targetUserId);
+    const targetSocketId = getReceiverSocketId(targetUserId);
+    const isTargetOnline = (targetRoom && targetRoom.size > 0) || Boolean(targetSocketId);
+
+    if (isTargetOnline) {
+      emitToUser(targetUserId, "iceCandidate", { candidate });
     } else if (activePendingCalls[targetUserId] && activePendingCalls[targetUserId].callerId === userId) {
       // Buffer candidate while target is offline
       activePendingCalls[targetUserId].candidates.push(candidate);
@@ -223,11 +222,7 @@ io.on("connection", async (socket) => {
       delete activePendingCalls[userId];
     }
 
-    const targetSocketId = getReceiverSocketId(targetUserId);
-    io.to(targetUserId).emit("callEnded");
-    if (targetSocketId) {
-      io.to(targetSocketId).emit("callEnded");
-    }
+    emitToUser(targetUserId, "callEnded");
     console.log(`📴 Call ended by ${userId} with ${targetUserId}`);
   });
 
@@ -238,12 +233,16 @@ io.on("connection", async (socket) => {
     if (activePendingCalls[userId]) {
       delete activePendingCalls[userId];
     }
-    const callerSocketId = getReceiverSocketId(callerId);
-    io.to(callerId).emit("callRejected");
-    if (callerSocketId) {
-      io.to(callerSocketId).emit("callRejected");
-    }
+
+    emitToUser(callerId, "callRejected");
     console.log(`🚫 Call rejected by ${userId} for caller ${callerId}`);
+  });
+
+  socket.on("callFailed", ({ to, reason }) => {
+    if (!to) return;
+    const targetUserId = to.toString();
+    emitToUser(targetUserId, "callFailed", { reason });
+    console.log(`⚠️ Call failed between ${userId} and ${targetUserId}: ${reason}`);
   });
 
   socket.on("disconnect", () => {

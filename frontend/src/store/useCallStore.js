@@ -323,8 +323,20 @@ export const useCallStore = create((set, get) => ({
       });
     } catch (error) {
       console.error("Failed to answer call:", error);
-      toast.error(error.message || "Could not answer call");
-      get().rejectCall();
+      const errorMsg =
+        error.name === "NotAllowedError" || error.name === "PermissionDeniedError"
+          ? "Microphone/camera permission was denied"
+          : error.message || "Could not access media devices";
+      toast.error(errorMsg);
+      const { socket } = useAuthStore.getState();
+      const { caller } = get();
+      if (socket && caller?.id) {
+        socket.emit("callFailed", {
+          to: caller.id.toString(),
+          reason: errorMsg,
+        });
+      }
+      get().cleanupCall();
     }
   },
 
@@ -427,9 +439,26 @@ export const useCallStore = create((set, get) => ({
     socket.off("iceCandidate");
 
     socket.on("incomingCall", ({ from, fromName, fromPic, signal, isVideoCall }) => {
-      // If already in an active call, automatically reject / busy
-      if (get().callState !== "idle") {
-        socket.emit("rejectCall", { to: from });
+      const callerId = from ? from.toString() : null;
+      console.log("📞 Received incomingCall from:", callerId, fromName);
+
+      // 1. If we are already ringing for this same call, ignore duplicate packet
+      if (get().callState === "incoming" && get().caller?.id?.toString() === callerId) {
+        return;
+      }
+
+      // 2. Only reject if user is actively talking in a connected call
+      if (get().callState === "connected") {
+        socket.emit("rejectCall", { to: callerId });
+        return;
+      }
+
+      // 3. If user is currently dialing someone else
+      if (get().callState === "calling") {
+        if (get().receiver?._id?.toString() === callerId) {
+          return;
+        }
+        socket.emit("rejectCall", { to: callerId });
         return;
       }
 
@@ -438,7 +467,7 @@ export const useCallStore = create((set, get) => ({
       set({
         callState: "incoming",
         isVideoCall,
-        caller: { id: from, name: fromName, pic: fromPic },
+        caller: { id: callerId, name: fromName, pic: fromPic },
         incomingSignal: signal,
         callDuration: 0,
       });
