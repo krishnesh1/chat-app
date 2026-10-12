@@ -63,7 +63,7 @@ const CallModal = () => {
 
   if (callState === "idle") return null;
 
-  const targetPerson = callState === "incoming" ? caller : receiver;
+  const targetPerson = receiver || caller;
   const avatarUrl = targetPerson?.pic
     ? targetPerson.pic.replace(/\.heic$/i, ".jpg")
     : "/avatar.png";

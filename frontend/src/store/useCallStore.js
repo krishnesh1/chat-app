@@ -7,6 +7,9 @@ const ICE_SERVERS = {
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
+    { urls: "stun:global.stun.twilio.com:3478" },
   ],
 };
 
@@ -141,6 +144,21 @@ export const useCallStore = create((set, get) => ({
       peerConnection.ontrack = (event) => {
         if (event.streams && event.streams[0]) {
           set({ remoteStream: event.streams[0] });
+        } else {
+          let currentStream = get().remoteStream;
+          if (!currentStream) {
+            currentStream = new MediaStream();
+            set({ remoteStream: currentStream });
+          }
+          currentStream.addTrack(event.track);
+        }
+      };
+
+      // Connection state tracking
+      peerConnection.onconnectionstatechange = () => {
+        console.log("WebRTC Caller Connection State:", peerConnection?.connectionState);
+        if (peerConnection?.connectionState === "connected") {
+          set({ callState: "connected" });
         }
       };
 
@@ -148,8 +166,8 @@ export const useCallStore = create((set, get) => ({
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
           socket.emit("iceCandidate", {
-            to: targetUser._id,
-            candidate: event.candidate,
+            to: targetUser._id.toString(),
+            candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
           });
         }
       };
@@ -160,9 +178,9 @@ export const useCallStore = create((set, get) => ({
 
       // 7. Emit callUser to signaling server
       socket.emit("callUser", {
-        userToCall: targetUser._id,
-        signalData: offer,
-        from: authUser._id,
+        userToCall: targetUser._id.toString(),
+        signalData: { type: offer.type, sdp: offer.sdp },
+        from: authUser._id.toString(),
         fromName: authUser.fullName,
         fromPic: authUser.profilePic,
         isVideoCall: isVideo,
@@ -237,6 +255,21 @@ export const useCallStore = create((set, get) => ({
       peerConnection.ontrack = (event) => {
         if (event.streams && event.streams[0]) {
           set({ remoteStream: event.streams[0] });
+        } else {
+          let currentStream = get().remoteStream;
+          if (!currentStream) {
+            currentStream = new MediaStream();
+            set({ remoteStream: currentStream });
+          }
+          currentStream.addTrack(event.track);
+        }
+      };
+
+      // Connection state tracking
+      peerConnection.onconnectionstatechange = () => {
+        console.log("WebRTC Receiver Connection State:", peerConnection?.connectionState);
+        if (peerConnection?.connectionState === "connected") {
+          set({ callState: "connected" });
         }
       };
 
@@ -244,14 +277,17 @@ export const useCallStore = create((set, get) => ({
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
           socket.emit("iceCandidate", {
-            to: caller.id,
-            candidate: event.candidate,
+            to: caller.id.toString(),
+            candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
           });
         }
       };
 
       // 6. Set remote description from caller's offer
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingSignal));
+      const offerDesc = incomingSignal?.type
+        ? incomingSignal
+        : { type: "offer", sdp: incomingSignal?.sdp || incomingSignal };
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offerDesc));
 
       // 7. Process any queued ICE candidates
       while (queuedCandidates.length > 0) {
@@ -269,8 +305,8 @@ export const useCallStore = create((set, get) => ({
 
       // 9. Send answer back to caller
       socket.emit("answerCall", {
-        to: caller.id,
-        signal: answer,
+        to: caller.id.toString(),
+        signal: { type: answer.type, sdp: answer.sdp },
       });
 
       // 10. Start call duration timer
@@ -296,8 +332,8 @@ export const useCallStore = create((set, get) => ({
     stopRingtone();
     const { socket } = useAuthStore.getState();
     const { caller } = get();
-    if (socket && caller) {
-      socket.emit("rejectCall", { to: caller.id });
+    if (socket && caller?.id) {
+      socket.emit("rejectCall", { to: caller.id.toString() });
     }
     get().cleanupCall();
   },
@@ -309,7 +345,7 @@ export const useCallStore = create((set, get) => ({
     const otherId = receiver?._id || caller?.id;
 
     if (socket && otherId) {
-      socket.emit("endCall", { to: otherId });
+      socket.emit("endCall", { to: otherId.toString() });
     }
     get().cleanupCall();
   },
@@ -419,15 +455,30 @@ export const useCallStore = create((set, get) => ({
     });
 
     socket.on("callAccepted", async ({ signal }) => {
+      console.log("📞 Call accepted by remote party");
       stopRingtone();
       if (callTimeoutRef) {
         clearTimeout(callTimeoutRef);
         callTimeoutRef = null;
       }
 
+      // Immediately start timer and unblock caller screen to connected
+      if (callTimerInterval) clearInterval(callTimerInterval);
+      callTimerInterval = setInterval(() => {
+        set((state) => ({ callDuration: state.callDuration + 1 }));
+      }, 1000);
+
+      set({ callState: "connected" });
+
       try {
-        if (peerConnection) {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
+        if (peerConnection && signal) {
+          const answerDesc = signal.type
+            ? signal
+            : { type: "answer", sdp: signal.sdp || signal };
+
+          if (peerConnection.signalingState === "have-local-offer") {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(answerDesc));
+          }
 
           // Process any queued candidates
           while (queuedCandidates.length > 0) {
@@ -435,17 +486,9 @@ export const useCallStore = create((set, get) => ({
             try {
               await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
             } catch (err) {
-              console.error("Error adding queued candidate on callAccepted:", err);
+              console.warn("Error adding queued candidate on callAccepted:", err);
             }
           }
-
-          // Start call timer
-          if (callTimerInterval) clearInterval(callTimerInterval);
-          callTimerInterval = setInterval(() => {
-            set((state) => ({ callDuration: state.callDuration + 1 }));
-          }, 1000);
-
-          set({ callState: "connected" });
         }
       } catch (err) {
         console.error("Error setting remote description on callAccepted:", err);

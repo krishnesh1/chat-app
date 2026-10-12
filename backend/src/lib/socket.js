@@ -23,15 +23,17 @@ const userSocketMap = {}; // { userId: socketId }
 const activePendingCalls = {};
 
 function getReceiverSocketId(userId) {
-  return userSocketMap[userId];
+  if (!userId) return null;
+  return userSocketMap[userId.toString()] || userSocketMap[userId];
 }
 
 io.on("connection", async (socket) => {
   console.log("✅ User connected:", socket.id);
 
-  const userId = socket.handshake.query.userId;
+  const rawUserId = socket.handshake.query.userId;
+  const userId = rawUserId ? rawUserId.toString() : null;
   if (userId) {
-    socket.join(userId.toString());
+    socket.join(userId);
     userSocketMap[userId] = socket.id;
 
     // When this user comes online, update any pending "sent" messages to "delivered"
@@ -45,7 +47,7 @@ io.on("connection", async (socket) => {
         // Notify each sender that their messages have been delivered (Double Grey Ticks)
         const senderIds = [...new Set(pendingMessages.map((m) => m.senderId.toString()))];
         senderIds.forEach((sId) => {
-          io.to(sId).emit("messagesDelivered", { receiverId: userId });
+          io.to(sId.toString()).emit("messagesDelivered", { receiverId: userId });
           const sSocket = getReceiverSocketId(sId);
           if (sSocket) io.to(sSocket).emit("messagesDelivered", { receiverId: userId });
         });
@@ -74,8 +76,11 @@ io.on("connection", async (socket) => {
           });
         }
 
-        // Notify the caller that receiver has reconnected and the call is now ringing
-        io.to(pending.callerSocketId).emit("callRinging", { targetUserId: userId });
+        // Notify caller that receiver reconnected and call is now ringing
+        io.to(pending.callerId.toString()).emit("callRinging", { targetUserId: userId });
+        if (pending.callerSocketId) {
+          io.to(pending.callerSocketId).emit("callRinging", { targetUserId: userId });
+        }
         console.log(`📞 Pending call delivered to reconnected user ${userId}`);
       }
       delete activePendingCalls[userId];
@@ -129,21 +134,37 @@ io.on("connection", async (socket) => {
 
   // 📞 WebRTC Call Signaling Handlers
   socket.on("callUser", ({ userToCall, signalData, from, fromName, fromPic, isVideoCall }) => {
-    const receiverSocketId = getReceiverSocketId(userToCall);
-    if (receiverSocketId) {
-      // Receiver is online: deliver incomingCall and tell caller's client it is ringing
-      io.to(receiverSocketId).emit("incomingCall", {
+    if (!userToCall) return;
+    const targetUserId = userToCall.toString();
+    const receiverSocketId = getReceiverSocketId(targetUserId);
+
+    // Check if target has an active socket or room
+    const targetRoom = io.sockets.adapter.rooms.get(targetUserId);
+    const isTargetOnline = (targetRoom && targetRoom.size > 0) || Boolean(receiverSocketId);
+
+    if (isTargetOnline) {
+      // Receiver is online: deliver incomingCall to user room AND direct socket
+      io.to(targetUserId).emit("incomingCall", {
         signal: signalData,
         from,
         fromName,
         fromPic,
         isVideoCall,
       });
-      socket.emit("callRinging", { targetUserId: userToCall });
-      console.log(`📞 Call initiated from ${fromName} (${from}) to ${userToCall} (Online: Ringing)`);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("incomingCall", {
+          signal: signalData,
+          from,
+          fromName,
+          fromPic,
+          isVideoCall,
+        });
+      }
+      socket.emit("callRinging", { targetUserId });
+      console.log(`📞 Call initiated from ${fromName} (${from}) to ${targetUserId} (Online: Ringing)`);
     } else {
       // Receiver is offline: save pending call, caller client enters "Calling..." state
-      activePendingCalls[userToCall] = {
+      activePendingCalls[targetUserId] = {
         callerId: from,
         callerSocketId: socket.id,
         signalData,
@@ -154,63 +175,88 @@ io.on("connection", async (socket) => {
         candidates: [],
         createdAt: Date.now(),
       };
-      socket.emit("callStatus", { status: "calling", targetUserId: userToCall });
-      console.log(`📞 Call initiated from ${fromName} (${from}) to ${userToCall} (Offline: Queued as Calling)`);
+      socket.emit("callStatus", { status: "calling", targetUserId });
+      console.log(`📞 Call initiated from ${fromName} (${from}) to ${targetUserId} (Offline: Queued as Calling)`);
     }
   });
 
   socket.on("answerCall", ({ to, signal }) => {
+    if (!to) return;
+    const callerId = to.toString();
     if (activePendingCalls[userId]) {
       delete activePendingCalls[userId];
     }
-    const callerSocketId = getReceiverSocketId(to);
+    const callerSocketId = getReceiverSocketId(callerId);
+
+    // Deliver callAccepted to caller's room AND direct socket ID
+    io.to(callerId).emit("callAccepted", { signal });
     if (callerSocketId) {
       io.to(callerSocketId).emit("callAccepted", { signal });
-      console.log(`✅ Call accepted by ${userId} for caller ${to}`);
     }
+    console.log(`✅ Call accepted by ${userId} for caller ${callerId}`);
   });
 
   socket.on("iceCandidate", ({ to, candidate }) => {
-    const targetSocketId = getReceiverSocketId(to);
+    if (!to || !candidate) return;
+    const targetUserId = to.toString();
+    const targetSocketId = getReceiverSocketId(targetUserId);
+
+    // Forward ICE candidate to target's room AND direct socket
+    io.to(targetUserId).emit("iceCandidate", { candidate });
     if (targetSocketId) {
       io.to(targetSocketId).emit("iceCandidate", { candidate });
-    } else if (activePendingCalls[to] && activePendingCalls[to].callerId === userId) {
+    } else if (activePendingCalls[targetUserId] && activePendingCalls[targetUserId].callerId === userId) {
       // Buffer candidate while target is offline
-      activePendingCalls[to].candidates.push(candidate);
+      activePendingCalls[targetUserId].candidates.push(candidate);
     }
   });
 
   socket.on("endCall", ({ to }) => {
-    // If there was a pending call to this target from the current caller, clean it up
-    if (to && activePendingCalls[to] && activePendingCalls[to].callerId === userId) {
-      delete activePendingCalls[to];
+    if (!to) return;
+    const targetUserId = to.toString();
+
+    // Clean up any pending call
+    if (activePendingCalls[targetUserId] && activePendingCalls[targetUserId].callerId === userId) {
+      delete activePendingCalls[targetUserId];
     }
-    // If the caller itself has a pending call directed at them, clean it up
     if (activePendingCalls[userId]) {
       delete activePendingCalls[userId];
     }
 
-    const targetSocketId = getReceiverSocketId(to);
+    const targetSocketId = getReceiverSocketId(targetUserId);
+    io.to(targetUserId).emit("callEnded");
     if (targetSocketId) {
       io.to(targetSocketId).emit("callEnded");
-      console.log(`📴 Call ended by ${userId} with ${to}`);
     }
+    console.log(`📴 Call ended by ${userId} with ${targetUserId}`);
   });
 
   socket.on("rejectCall", ({ to }) => {
+    if (!to) return;
+    const callerId = to.toString();
+
     if (activePendingCalls[userId]) {
       delete activePendingCalls[userId];
     }
-    const callerSocketId = getReceiverSocketId(to);
+    const callerSocketId = getReceiverSocketId(callerId);
+    io.to(callerId).emit("callRejected");
     if (callerSocketId) {
       io.to(callerSocketId).emit("callRejected");
-      console.log(`🚫 Call rejected by ${userId} for caller ${to}`);
     }
+    console.log(`🚫 Call rejected by ${userId} for caller ${callerId}`);
   });
 
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);
-    delete userSocketMap[userId];
+    if (userId) {
+      const room = io.sockets.adapter.rooms.get(userId.toString());
+      if (!room || room.size === 0) {
+        delete userSocketMap[userId];
+      } else if (userSocketMap[userId] === socket.id) {
+        // Fallback to another remaining socket in the room
+        userSocketMap[userId] = Array.from(room)[0];
+      }
+    }
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
     // Clean up any pending calls initiated by or waiting for this user
