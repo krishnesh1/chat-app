@@ -23,7 +23,6 @@ import {
   EyeOff,
   Smile,
   Pencil,
-  CheckSquare,
   CheckCircle2,
   Clock,
   X,
@@ -48,6 +47,7 @@ const ChatContainer = () => {
     editMessage,
     selectedMessageIds,
     isSelectionMode,
+    selectMessage,
     toggleSelectMessage,
     clearMessageSelection,
     selectAllMessages,
@@ -74,6 +74,12 @@ const ChatContainer = () => {
   const [swipeMessageId, setSwipeMessageId] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const touchStartRef = useRef({ x: 0, y: 0 });
+
+  // Long-press / Hold to select state (Touch & Mouse Web)
+  const holdTimerRef = useRef(null);
+  const isLongPressTriggeredRef = useRef(false);
+  const pointerStartPosRef = useRef({ x: 0, y: 0 });
+  const activeHoldingMsgIdRef = useRef(null);
 
   const openLightbox = (url) => {
     if (typeof window !== "undefined") {
@@ -196,21 +202,132 @@ const ChatContainer = () => {
     }
   };
 
-  // ===== SWIPE LEFT-TO-RIGHT TO REPLY =====
-  const handleTouchStart = (e, message) => {
-    if (message.isDeleted || isSelectionMode) return;
-    touchStartRef.current = {
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
+  // Escape key to exit selection mode (WhatsApp Web style)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && isSelectionMode) {
+        clearMessageSelection();
+      }
     };
-    setSwipeMessageId(message._id);
-    setSwipeOffset(0);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSelectionMode, clearMessageSelection]);
+
+  // Clean up hold timer on unmount
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    };
+  }, []);
+
+  // ===== HOLD TO SELECT MESSAGE (TOUCH & MOUSE LONG-PRESS) =====
+  const startHoldTimer = (clientX, clientY, message) => {
+    if (message.isDeleted) return;
+
+    pointerStartPosRef.current = { x: clientX, y: clientY };
+    isLongPressTriggeredRef.current = false;
+    activeHoldingMsgIdRef.current = message._id;
+
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+
+    holdTimerRef.current = setTimeout(() => {
+      isLongPressTriggeredRef.current = true;
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate(40);
+        } catch (err) {}
+      }
+      selectMessage(message._id);
+      if (typeof window !== "undefined") {
+        window.getSelection()?.removeAllRanges();
+      }
+      setSwipeMessageId(null);
+      setSwipeOffset(0);
+    }, 400);
+  };
+
+  const cancelHoldTimerIfMoved = (clientX, clientY) => {
+    if (!holdTimerRef.current) return;
+    const diffX = Math.abs(clientX - pointerStartPosRef.current.x);
+    const diffY = Math.abs(clientY - pointerStartPosRef.current.y);
+    if (diffX > 8 || diffY > 8) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+      activeHoldingMsgIdRef.current = null;
+    }
+  };
+
+  const clearHoldTimer = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    activeHoldingMsgIdRef.current = null;
+    if (isLongPressTriggeredRef.current) {
+      setTimeout(() => {
+        isLongPressTriggeredRef.current = false;
+      }, 150);
+    }
+  };
+
+  const handleMouseDown = (e, message) => {
+    if (message.isDeleted) return;
+    if (e.button !== 0) return; // Left click only
+    startHoldTimer(e.clientX, e.clientY, message);
+  };
+
+  const handleMouseMove = (e) => {
+    cancelHoldTimerIfMoved(e.clientX, e.clientY);
+  };
+
+  const handleMouseUp = () => {
+    clearHoldTimer();
+  };
+
+  const handleContextMenu = (e, message) => {
+    if (message.isDeleted) return;
+    e.preventDefault();
+    toggleSelectMessage(message._id);
+  };
+
+  const handleMessageClick = (e, message) => {
+    if (isLongPressTriggeredRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    if (isSelectionMode) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSelectMessage(message._id);
+      return;
+    }
+  };
+
+  // ===== TOUCH EVENTS: SWIPE-TO-REPLY & HOLD-TO-SELECT =====
+  const handleTouchStart = (e, message) => {
+    if (message.isDeleted) return;
+    const touch = e.touches[0];
+    startHoldTimer(touch.clientX, touch.clientY, message);
+
+    if (!isSelectionMode) {
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+      };
+      setSwipeMessageId(message._id);
+      setSwipeOffset(0);
+    }
   };
 
   const handleTouchMove = (e, message) => {
-    if (swipeMessageId !== message._id || isSelectionMode) return;
-    const diffX = e.touches[0].clientX - touchStartRef.current.x;
-    const diffY = Math.abs(e.touches[0].clientY - touchStartRef.current.y);
+    const touch = e.touches[0];
+    cancelHoldTimerIfMoved(touch.clientX, touch.clientY);
+
+    if (swipeMessageId !== message._id || isSelectionMode || isLongPressTriggeredRef.current) return;
+    const diffX = touch.clientX - touchStartRef.current.x;
+    const diffY = Math.abs(touch.clientY - touchStartRef.current.y);
 
     if (diffX > 5 && diffX > diffY) {
       const clamped = Math.min(diffX * 0.75, 60);
@@ -219,7 +336,15 @@ const ChatContainer = () => {
   };
 
   const handleTouchEnd = (message) => {
-    if (swipeMessageId === message._id) {
+    clearHoldTimer();
+
+    if (isLongPressTriggeredRef.current) {
+      setSwipeMessageId(null);
+      setSwipeOffset(0);
+      return;
+    }
+
+    if (swipeMessageId === message._id && !isSelectionMode) {
       if (swipeOffset >= 38) {
         setReplyingTo(message);
         toast("Replying to message", { icon: "↩️", duration: 1500 });
@@ -254,33 +379,50 @@ const ChatContainer = () => {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-100/40 relative">
-      <ChatHeader />
-
-      {/* SELECTION ACTION BAR (WhatsApp style) */}
-      {isSelectionMode && (
-        <div className="px-3 sm:px-4 py-2 bg-primary text-primary-content flex items-center justify-between shadow-md z-30 animate-in fade-in slide-in-from-top-1 flex-shrink-0">
-          <div className="flex items-center gap-2.5">
+      {/* HEADER: Either WhatsApp Selection Action Bar OR Normal ChatHeader */}
+      {isSelectionMode ? (
+        <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-primary text-primary-content flex items-center justify-between shadow-md z-30 animate-in fade-in slide-in-from-top-1 flex-shrink-0 min-h-[57px] sm:min-h-[64px]">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={clearMessageSelection}
-              className="btn btn-ghost btn-circle btn-xs text-primary-content hover:bg-black/10"
-              title="Cancel selection"
+              className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-primary-content hover:bg-black/15"
+              title="Cancel selection (Esc)"
             >
-              <X className="size-4" />
+              <X className="size-4 sm:size-5" />
             </button>
-            <span className="font-bold text-xs sm:text-sm">
+            <span className="font-bold text-sm sm:text-base tracking-tight">
               {selectedMessageIds.length} selected
             </span>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 sm:gap-1.5">
             {/* Select All */}
             <button
               onClick={selectAllMessages}
-              className="btn btn-ghost btn-xs text-primary-content hover:bg-black/10 text-xs font-semibold px-2"
+              className="btn btn-ghost btn-xs sm:btn-sm text-primary-content hover:bg-black/15 text-xs font-bold px-2 sm:px-3"
               title="Select all messages"
             >
               All
             </button>
+
+            {/* Star single selected message */}
+            {selectedMessageIds.length === 1 && (
+              <button
+                onClick={() => {
+                  toggleStarMessage(selectedMessageIds[0]);
+                }}
+                className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-primary-content hover:bg-black/15"
+                title="Star / Unstar"
+              >
+                <Star
+                  className={`size-4 ${
+                    messages.find((m) => m._id === selectedMessageIds[0])?.isStarredBy?.includes(authUser._id)
+                      ? "fill-current text-amber-300"
+                      : ""
+                  }`}
+                />
+              </button>
+            )}
 
             {/* Forward Selected */}
             <button
@@ -293,10 +435,10 @@ const ChatContainer = () => {
                 }
               }}
               disabled={selectedMessageIds.length === 0}
-              className="btn btn-ghost btn-circle btn-xs text-primary-content hover:bg-black/10 disabled:opacity-40"
+              className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-primary-content hover:bg-black/15 disabled:opacity-40"
               title={`Forward ${selectedMessageIds.length} message(s)`}
             >
-              <Share2 className="size-3.5 sm:size-4" />
+              <Share2 className="size-4" />
             </button>
 
             {/* Copy Selected Text */}
@@ -315,10 +457,10 @@ const ChatContainer = () => {
                 }
               }}
               disabled={selectedMessageIds.length === 0}
-              className="btn btn-ghost btn-circle btn-xs text-primary-content hover:bg-black/10 disabled:opacity-40"
+              className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-primary-content hover:bg-black/15 disabled:opacity-40"
               title="Copy selected text"
             >
-              <Copy className="size-3.5 sm:size-4" />
+              <Copy className="size-4" />
             </button>
 
             {/* Delete Selected (if all belong to sender) */}
@@ -332,14 +474,16 @@ const ChatContainer = () => {
                   }
                   clearMessageSelection();
                 }}
-                className="btn btn-ghost btn-circle btn-xs text-primary-content hover:bg-black/10"
+                className="btn btn-ghost btn-circle btn-xs sm:btn-sm text-primary-content hover:bg-black/15"
                 title="Delete selected messages"
               >
-                <Trash2 className="size-3.5 sm:size-4" />
+                <Trash2 className="size-4" />
               </button>
             )}
           </div>
         </div>
+      ) : (
+        <ChatHeader />
       )}
 
       {/* Messages Scroll Area with Premium Ambient Wallpaper */}
@@ -397,14 +541,11 @@ const ChatContainer = () => {
                 ref={(el) => {
                   if (el) messageRefs.current[message._id] = el;
                 }}
-                onClick={() => {
-                  if (isSelectionMode) {
-                    toggleSelectMessage(message._id);
-                  }
-                }}
-                className={`chat ${isMe ? "chat-end" : "chat-start"} group/msg relative transition-all duration-300 ${
-                  isSelectionMode ? "cursor-pointer select-none" : ""
-                } ${isSelected ? "bg-primary/5 rounded-2xl px-2 -mx-2" : ""}`}
+                onClick={(e) => handleMessageClick(e, message)}
+                onContextMenu={(e) => handleContextMenu(e, message)}
+                className={`chat ${isMe ? "chat-end" : "chat-start"} group/msg relative transition-all duration-300 select-none ${
+                  isSelectionMode ? "cursor-pointer" : ""
+                } ${isSelected ? "bg-primary/10 dark:bg-primary/15 rounded-2xl px-2.5 py-1 -mx-2.5 shadow-xs" : ""}`}
               >
                 {/* Selection Checkbox (WhatsApp style) */}
                 {isSelectionMode && (
@@ -413,10 +554,10 @@ const ChatContainer = () => {
                       e.stopPropagation();
                       toggleSelectMessage(message._id);
                     }}
-                    className={`self-center ${isMe ? "order-last ml-2" : "order-first mr-2"} shrink-0`}
+                    className={`self-center ${isMe ? "order-last ml-2" : "order-first mr-2"} shrink-0 cursor-pointer`}
                   >
                     {isSelected ? (
-                      <CheckCircle2 className="size-5 text-primary fill-primary" />
+                      <CheckCircle2 className="size-5 text-primary fill-primary text-white" />
                     ) : (
                       <div className="size-5 rounded-full border-2 border-base-content/40 hover:border-primary transition-colors" />
                     )}
@@ -477,17 +618,21 @@ const ChatContainer = () => {
                   )}
                 </div>
 
-                {/* Message Bubble with Swipe-to-reply */}
+                {/* Message Bubble with Swipe-to-reply & Hold-to-select */}
                 <div
                   onTouchStart={(e) => handleTouchStart(e, message)}
                   onTouchMove={(e) => handleTouchMove(e, message)}
                   onTouchEnd={() => handleTouchEnd(message)}
                   onTouchCancel={() => handleTouchEnd(message)}
+                  onMouseDown={(e) => handleMouseDown(e, message)}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
                   style={{
                     transform: isSwipingThis ? `translateX(${swipeOffset}px)` : undefined,
                     transition: isSwipingThis ? "none" : "transform 0.2s ease-out",
                   }}
-                  className={`chat-bubble relative flex flex-col p-3 rounded-2xl shadow-sm max-w-[85%] sm:max-w-[75%] ${
+                  className={`chat-bubble relative flex flex-col p-3 rounded-2xl shadow-sm max-w-[85%] sm:max-w-[75%] select-none ${
                     message.isDeleted
                       ? "bg-base-200/50 text-base-content/50 italic border border-base-300/40"
                       : isMe
@@ -647,13 +792,13 @@ const ChatContainer = () => {
                               toggleSecretReveal(message._id);
                             }
                           }}
-                          className={`relative ${
+                          className={`relative select-none ${
                             message.isSecret && !isSecretRevealed
                               ? "filter blur-sm select-none cursor-pointer bg-black/20 p-2 rounded-lg"
                               : ""
                           }`}
                         >
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words select-none">
                             {message.text}
                           </p>
                         </div>
@@ -704,7 +849,7 @@ const ChatContainer = () => {
                 )}
 
                 {/* FLOATING ACTION TOOLBAR ON HOVER */}
-                {!message.isDeleted && (
+                {!message.isDeleted && !isSelectionMode && (
                   <div
                     className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center gap-1 z-20 ${
                       isMe ? "right-14" : "left-14"
@@ -774,17 +919,6 @@ const ChatContainer = () => {
                           <Pencil className="size-3.5" />
                         </button>
                       )}
-
-                      {/* Select Message (Multi-Select) */}
-                      <button
-                        onClick={() => toggleSelectMessage(message._id)}
-                        className={`btn btn-ghost btn-xs btn-square ${
-                          isSelected ? "text-primary bg-primary/10" : "text-base-content/70 hover:text-primary"
-                        }`}
-                        title="Select message"
-                      >
-                        <CheckSquare className="size-3.5" />
-                      </button>
 
                       {/* Forward */}
                       <button

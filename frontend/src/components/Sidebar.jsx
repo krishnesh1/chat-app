@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
-import { Users, Search, X, CheckCheck, Check, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Users, Search, X, CheckCheck, Check, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
 import { formatMessageTime } from "../lib/utils";
 
 const Sidebar = () => {
@@ -37,14 +38,28 @@ const Sidebar = () => {
       <div className="border-b border-base-300/80 p-3 sm:p-4 flex flex-col gap-2.5 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="size-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary relative">
-              <Users className="size-4" />
-              {totalUnreadCount > 0 && isCollapsed && (
-                <span className="absolute -top-1 -right-1 size-3 bg-emerald-500 rounded-full ring-2 ring-base-100 animate-pulse" />
-              )}
-            </div>
+            {/* Logged-in User Avatar (WhatsApp Web style) */}
+            <Link
+              to="/profile"
+              className="relative shrink-0 group cursor-pointer"
+              title={`${authUser?.fullName || "User"} (View Profile)`}
+            >
+              <div className="size-8 sm:size-9 rounded-full ring-2 ring-primary/40 hover:ring-primary overflow-hidden transition-all shadow-xs">
+                <img
+                  src={
+                    authUser?.profilePic
+                      ? authUser.profilePic.replace(/\.heic$/i, ".jpg")
+                      : "/avatar.png"
+                  }
+                  alt={authUser?.fullName || "User"}
+                  className="size-full object-cover group-hover:scale-105 transition-transform"
+                />
+              </div>
+              <span className="absolute bottom-0 right-0 size-2.5 bg-emerald-500 rounded-full ring-1.5 ring-base-100" />
+            </Link>
+
             <div className={`${isCollapsed ? "hidden" : "flex"} items-center gap-2`}>
-              <span className="font-bold text-base tracking-tight">Messages</span>
+              <span className="font-bold text-base tracking-tight">Chats</span>
               {totalUnreadCount > 0 && (
                 <span className="bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
                   {totalUnreadCount} new
@@ -54,14 +69,13 @@ const Sidebar = () => {
           </div>
 
           <div className="flex items-center gap-1">
-            <div
-              className={`${
-                isCollapsed ? "hidden" : "flex"
-              } items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20`}
+            <Link
+              to="/settings"
+              className="btn btn-ghost btn-circle btn-xs text-base-content/60 hover:text-base-content"
+              title="Settings"
             >
-              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{onlineCount} online</span>
-            </div>
+              <Settings className="size-3.5" />
+            </Link>
 
             {/* Collapse / Expand Toggle */}
             <button

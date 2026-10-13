@@ -19,6 +19,11 @@ export const useChatStore = create((set, get) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   setShowStarredOnly: (val) => set({ showStarredOnly: val }),
   setSelectedMessageIds: (ids) => set({ selectedMessageIds: ids, isSelectionMode: ids.length > 0 }),
+  selectMessage: (id) => {
+    const current = get().selectedMessageIds;
+    const updated = current.includes(id) ? current : [...current, id];
+    set({ selectedMessageIds: updated, isSelectionMode: true });
+  },
   toggleSelectMessage: (id) => {
     const current = get().selectedMessageIds;
     const updated = current.includes(id)
