@@ -554,7 +554,7 @@ const ChatContainer = () => {
                       e.stopPropagation();
                       toggleSelectMessage(message._id);
                     }}
-                    className={`self-center ${isMe ? "order-last ml-2" : "order-first mr-2"} shrink-0 cursor-pointer`}
+                    className={`chat-image self-center ${isMe ? "order-last ml-2" : "order-first mr-2"} shrink-0 cursor-pointer`}
                   >
                     {isSelected ? (
                       <CheckCircle2 className="size-5 text-primary fill-primary text-white" />
@@ -563,24 +563,6 @@ const ChatContainer = () => {
                     )}
                   </div>
                 )}
-
-                {/* Avatar */}
-                <div className="chat-image avatar">
-                  <div className="size-8 sm:size-9 rounded-full border border-base-300 overflow-hidden shadow-xs">
-                    <img
-                      src={
-                        (isMe ? authUser.profilePic : selectedUser.profilePic)
-                          ? (isMe ? authUser.profilePic : selectedUser.profilePic).replace(
-                              /\.heic$/i,
-                              ".jpg"
-                            )
-                          : "/avatar.png"
-                      }
-                      alt="avatar"
-                      className="size-full object-cover"
-                    />
-                  </div>
-                </div>
 
                 {/* Message Header (Time & Real-Time WhatsApp Ticks) */}
                 <div className="chat-header mb-1 flex items-center gap-1.5">
